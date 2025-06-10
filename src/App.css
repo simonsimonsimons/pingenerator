@@ -1,31 +1,38 @@
-/* Zusätzliches CSS für CSV-Upload und Ergebnistabelle */
+/* Zusätzliches CSS für Tabs und Controls */
 
-.csv-upload-label {
+.tab-buttons {
+  display: flex;
+  border-bottom: 2px solid #eee;
+  margin-bottom: 20px;
+}
+.tab-buttons button {
+  padding: 10px 20px;
+  border: none;
+  background-color: transparent;
+  color: #666;
   cursor: pointer;
-  background-color: #007bff;
-  color: white;
-  padding: 10px 15px;
-  border-radius: 5px;
-  display: inline-block;
-  margin-bottom: 10px;
+  font-size: 16px;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
 }
-input[type="file"] {
-  display: none; /* Versteckt den Standard-Input */
+.tab-buttons button.active {
+  color: #007bff;
+  border-bottom-color: #007bff;
+}
+.tab-content {
+  padding: 10px 0;
 }
 
-.results-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 15px;
+.controls {
+  display: flex;
+  justify-content: center;
+  margin-top: -15px;
 }
-.results-table th, .results-table td {
-  border: 1px solid #ddd;
-  padding: 8px;
-  text-align: left;
+.controls button {
+  background-color: #ffc107;
+  color: #212529;
+  font-weight: bold;
 }
-.results-table th {
-  background-color: #f2f2f2;
+.controls button:hover {
+  background-color: #e0a800;
 }
-.results-table tr.status-success { background-color: #e9f7ef; }
-.results-table tr.status-error { background-color: #fbe9e7; }
-.results-table tr.status-processing { background-color: #e6f2ff; }
