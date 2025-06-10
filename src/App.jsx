@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+
+// KORREKTE IMPORTE
 import Header from './components/Header';
 import SetupSection from './components/SetupSection';
 import TopicSection from './components/TopicSection';
 import StatusSection from './components/StatusSection';
-import ResultsSection from './components/ResultsSection';
+import ResultsSection from './components/ResultsSection'; // Importiert den Default Export
 
 export default function App() {
   const [connectionOnline, setConnectionOnline] = useState(navigator.onLine);

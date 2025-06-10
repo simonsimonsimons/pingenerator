@@ -1,28 +1,26 @@
 import React from 'react';
 
+// KORREKTER DEFAULT EXPORT
 export default function ResultsSection({ results }) {
-  if (!results.blog) return null;
+  if (!results.blog && !results.image) return null;
 
   return (
-    <div className="result-card">
-      <div className="result-header">📄 Blogpost Vorschau</div>
-      <div
-        className="blog-preview"
-        dangerouslySetInnerHTML={{ __html: results.blog }}
-      />
-
-      {/* Affiliate-Link aus Env (für CRA) */}
-      {process.env.REACT_APP_AFFILIATE_LINK && (
-        <div className="affiliate-link" style={{ marginTop: '1rem' }}>
-          <a
-            href={process.env.REACT_APP_AFFILIATE_LINK}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Unterstütze uns mit einem Klick auf diesen Link
-          </a>
+    <div className="results-section">
+      {results.blog && (
+        <div className="result-card">
+          <div className="result-header">📄 Blogpost Vorschau</div>
+          <div className="blog-preview" dangerouslySetInnerHTML={{ __html: results.blog }} />
         </div>
       )}
+      {results.image && (
+        <div className="result-card">
+          <div className="result-header">🎨 Pinterest-Bild</div>
+          <img className="image-preview" src={results.image} alt="Generiertes Pinterest-Bild" />
+        </div>
+      )}
+
+      {/* Affiliate-Link wird hier nicht mehr direkt aus process.env gelesen.
+          Das sollte serverseitig passieren und als Teil des blog-Inhalts kommen. */}
     </div>
   );
 }
