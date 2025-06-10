@@ -1,6 +1,6 @@
 import React from 'react';
 
-export function ResultsSection({ results }) {
+export default function ResultsSection({ results }) {
   if (!results.blog) return null;
 
   return (
