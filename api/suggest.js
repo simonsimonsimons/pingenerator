@@ -1,7 +1,7 @@
-// api/suggest.js (Finale, robuste Version)
+// api/suggest.js (Version mit detailliertem Logging)
 const fetch = require('node-fetch');
 
-// --- TEIL 1: Definition der Konstanten ---
+// --- TEIL 1: Definition der Konstanten (unverändert) ---
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 let GEMINI_MODEL_ID = process.env.GEMINI_MODEL_ID || "gemini-1.5-flash";
 
@@ -12,27 +12,21 @@ const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models
 
 function generateAmazonAffiliateLink(produktName) {
   const amazonTag = process.env.AFFILIATE_ID_AMAZON || "";
-  if (!produktName) return "#";
+  if (!produktName || produktName.trim() === "") return "#"; // WICHTIG: Prüft auf leere Produktnamen
   const encodedQuery = encodeURIComponent(produktName.trim());
   return amazonTag
     ? `https://www.amazon.de/s?k=${encodedQuery}&tag=${amazonTag}`
     : `https://www.amazon.de/s?k=${encodedQuery}`;
 }
 
-// NEUE HILFSFUNKTION: Entkommt Sonderzeichen für die Verwendung in RegExp
 function escapeRegExp(string) {
-  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& bedeutet die gesamte gefundene Zeichenkette
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-
-// --- TEIL 2: Die Handler-Funktion ---
+// --- TEIL 2: Die Handler-Funktion mit Debug-Logs ---
 module.exports = async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).end("Method Not Allowed");
-  }
-
+  // ... (Ihr Prompt und die Anfrage-Vorbereitung bleiben gleich) ...
   const { alter = "", beruf = "", hobby = "", anlass = "", stil = "", budget = "" } = req.body;
-
   const prompt = `
 Du bist ein kreativer Geschenkideen-Experte. Deine Aufgabe ist es, einen hilfreichen Geschenke-Ratgeber zu erstellen.
 
@@ -97,21 +91,33 @@ GIB DEINE ANTWORT AUSSCHLIESSLICH IM FOLGENDEN JSON-FORMAT ZURÜCK. BEGINNE DIRE
       ...idee,
       affiliate_link: generateAmazonAffiliateLink(idee.produkt)
     }));
-
-    // NEU: Debugging-Logs, die Sie in Vercel sehen können
-    console.log("DEBUG: Generierte Ideen:", JSON.stringify(ideas.map(i => i.produkt), null, 2));
-    console.log("DEBUG: Blog-HTML vor der Ersetzung:", parsed.blog);
-
+    
+    // --- NEU: Detailliertes Logging ---
+    console.log("===== DEBUG-START =====");
+    console.log("Generierte Ideen mit Links:", JSON.stringify(ideas, null, 2));
+    console.log("Blog-HTML von der KI (vor Ersetzung):", parsed.blog);
+    
     let blogHtml = parsed.blog;
     for (const idee of ideas) {
-      // NEU: Verbesserte Ersetzung
-      const escapedProdukt = escapeRegExp(idee.produkt); // Behandelt Sonderzeichen
-      const regex = new RegExp(`<${escapedProdukt}>`, "gi"); // 'g' für global, 'i' für case-insensitive
+      // Log für jede einzelne Ersetzung
+      console.log(`Versuche, Platzhalter für Produkt zu ersetzen: "${idee.produkt}"`);
       
+      const escapedProdukt = escapeRegExp(idee.produkt || ""); // || "" fängt leere Produkte ab
+      if (!escapedProdukt) continue; // Überspringe leere Produkte
+
+      const regex = new RegExp(`<${escapedProdukt}>`, "gi");
+      
+      if (regex.test(blogHtml)) {
+        console.log(`  -> Platzhalter gefunden!`);
+      } else {
+        console.log(`  -> WARNUNG: Platzhalter wurde im Text NICHT gefunden!`);
+      }
+
       const anchor = `<a href="${idee.affiliate_link}" target="_blank" rel="noopener noreferrer">${idee.produkt}</a>`;
       blogHtml = blogHtml.replace(regex, anchor);
     }
-
+    console.log("===== DEBUG-ENDE =====");
+    
     return res.status(200).json({ ideas, blog: blogHtml });
   } catch (err) {
     console.error("❌ Fehler bei Verarbeitung:", err.message);
