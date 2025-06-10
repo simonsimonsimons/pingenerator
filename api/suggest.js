@@ -1,46 +1,9 @@
-// api/suggest.js
+// api/suggest.js (Korrigierte Version)
 
-const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
-let GEMINI_MODEL_ID = process.env.GEMINI_MODEL_ID || "gemini-1.5-flash-8b-001";
+// ... (Ihr Code für GOOGLE_API_KEY, generateAffiliateLink etc. bleibt hier unverändert)
+const fetch = require('node-fetch'); // Stellen Sie sicher, dass fetch importiert ist, falls nicht schon geschehen
 
-if (GEMINI_MODEL_ID.startsWith("models/")) {
-  GEMINI_MODEL_ID = GEMINI_MODEL_ID.replace(/^models\//, "");
-}
-
-const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL_ID}:generateContent?key=${GOOGLE_API_KEY}`;
-
-const affiliateIds = {
-  amazonTag: process.env.AFFILIATE_ID_AMAZON || "",
-  ottoMid: process.env.OTTO_AWIN_MERCHANT_ID || "",
-  ottoAff: process.env.OTTO_AWIN_AFFILIATE_ID || "",
-  etsyMid: process.env.ETSY_AWIN_MERCHANT_ID || "",
-  etsyAff: process.env.ETSY_AWIN_AFFILIATE_ID || "",
-};
-
-function generateAffiliateLink(produktName, platform) {
-  if (!produktName || !platform) return "#";
-  const encodedQuery = encodeURIComponent(produktName.trim());
-  switch (platform.toLowerCase()) {
-    case "amazon":
-      return affiliateIds.amazonTag
-        ? `https://www.amazon.de/s?k=${encodedQuery}&tag=${affiliateIds.amazonTag}`
-        : `https://www.amazon.de/s?k=${encodedQuery}`;
-    case "otto": {
-      const searchUrl = `https://www.otto.de/suche/${encodedQuery}/`;
-      if (!affiliateIds.ottoMid || !affiliateIds.ottoAff) return searchUrl;
-      const encodedOtto = encodeURIComponent(searchUrl);
-      return `https://www.awin1.com/cread.php?awinmid=${affiliateIds.ottoMid}&awinaffid=${affiliateIds.ottoAff}&clickref=&ued=${encodedOtto}`;
-    }
-    case "etsy": {
-      const searchUrl = `https://www.etsy.com/search?q=${encodedQuery}`;
-      if (!affiliateIds.etsyMid || !affiliateIds.etsyAff) return searchUrl;
-      const encodedEtsy = encodeURIComponent(searchUrl);
-      return `https://www.awin1.com/cread.php?awinmid=${affiliateIds.etsyMid}&awinaffid=${affiliateIds.etsyAff}&clickref=&ued=${encodedEtsy}`;
-    }
-    default:
-      return `https://www.google.com/search?q=${encodedQuery}`;
-  }
-}
+// ... (Ihre Konstanten und die generateAffiliateLink-Funktion von oben)
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
@@ -53,7 +16,7 @@ module.exports = async function handler(req, res) {
   const prompt = `
 Du bist ein kreativer Geschenkideen-Experte.
 
-1️⃣ Erstelle zuerst genau 10 Geschenkideen als JSON-ARRAY:
+1️⃣ Erstelle zuerst genau 10 Geschenkideen die es auf Amazon gibt als JSON-ARRAY:
 [
   { "produkt": "<Produktname>", "beschreibung": "<Kurzbeschreibung>", "plattform": "Amazon|Otto|Etsy" },
   ...
@@ -92,7 +55,11 @@ NUR dieses JSON zurückgeben.`;
     const result = await response.json();
     const raw = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-    const parsed = JSON.parse(raw);
+    // NEU: Bereinigen des Strings von Markdown-Codeblöcken
+    const cleanedJsonString = raw.replace(/^```json\s*/, '').replace(/```$/, '').trim();
+
+    const parsed = JSON.parse(cleanedJsonString); // NEU: Den bereinigten String parsen
+    
     const ideas = parsed.ideas.map((idee) => ({
       ...idee,
       affiliate_link: generateAffiliateLink(idee.produkt, idee.plattform)
@@ -101,13 +68,15 @@ NUR dieses JSON zurückgeben.`;
     let blogHtml = parsed.blog;
     for (const idee of ideas) {
       const regex = new RegExp(`<${idee.produkt}>`, "g");
-      const anchor = `<a href=\"${idee.affiliate_link}\">${idee.produkt}</a>`;
+      const anchor = `<a href="${idee.affiliate_link}" target="_blank" rel="noopener noreferrer">${idee.produkt}</a>`;
       blogHtml = blogHtml.replace(regex, anchor);
     }
 
     return res.status(200).json({ ideas, blog: blogHtml });
   } catch (err) {
     console.error("❌ Fehler bei Verarbeitung:", err);
+    // Loggen Sie den rohen Text, um zu sehen, was die KI gesendet hat
+    console.error("Roh-Text von der KI:", raw); 
     return res.status(500).json({ ideas: [], blog: "" });
   }
 };
