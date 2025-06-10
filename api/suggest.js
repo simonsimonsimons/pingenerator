@@ -1,9 +1,51 @@
-// api/suggest.js (Korrigierte Version)
+// api/suggest.js (Vollständige und korrigierte Version)
+const fetch = require('node-fetch');
 
-// ... (Ihr Code für GOOGLE_API_KEY, generateAffiliateLink etc. bleibt hier unverändert)
-const fetch = require('node-fetch'); // Stellen Sie sicher, dass fetch importiert ist, falls nicht schon geschehen
+// --- TEIL 1: Definition der Konstanten (Dieser Teil hat gefehlt) ---
 
-// ... (Ihre Konstanten und die generateAffiliateLink-Funktion von oben)
+const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
+let GEMINI_MODEL_ID = process.env.GEMINI_MODEL_ID || "gemini-1.5-flash";
+
+if (GEMINI_MODEL_ID.startsWith("models/")) {
+  GEMINI_MODEL_ID = GEMINI_MODEL_ID.replace(/^models\//, "");
+}
+
+const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL_ID}:generateContent?key=${GOOGLE_API_KEY}`;
+
+const affiliateIds = {
+  amazonTag: process.env.AFFILIATE_ID_AMAZON || "",
+  ottoMid: process.env.OTTO_AWIN_MERCHANT_ID || "",
+  ottoAff: process.env.OTTO_AWIN_AFFILIATE_ID || "",
+  etsyMid: process.env.ETSY_AWIN_MERCHANT_ID || "",
+  etsyAff: process.env.ETSY_AWIN_AFFILIATE_ID || "",
+};
+
+function generateAffiliateLink(produktName, platform) {
+  if (!produktName || !platform) return "#";
+  const encodedQuery = encodeURIComponent(produktName.trim());
+  switch (platform.toLowerCase()) {
+    case "amazon":
+      return affiliateIds.amazonTag
+        ? `https://www.amazon.de/s?k=${encodedQuery}&tag=${affiliateIds.amazonTag}`
+        : `https://www.amazon.de/s?k=${encodedQuery}`;
+    case "otto": {
+      const searchUrl = `https://www.otto.de/suche/${encodedQuery}/`;
+      if (!affiliateIds.ottoMid || !affiliateIds.ottoAff) return searchUrl;
+      const encodedOtto = encodeURIComponent(searchUrl);
+      return `https://www.awin1.com/cread.php?awinmid=${affiliateIds.ottoMid}&awinaffid=${affiliateIds.ottoAff}&clickref=&ued=${encodedOtto}`;
+    }
+    case "etsy": {
+      const searchUrl = `https://www.etsy.com/search?q=${encodedQuery}`;
+      if (!affiliateIds.etsyMid || !affiliateIds.etsyAff) return searchUrl;
+      const encodedEtsy = encodeURIComponent(searchUrl);
+      return `https://www.awin1.com/cread.php?awinmid=${affiliateIds.etsyMid}&awinaffid=${affiliateIds.etsyAff}&clickref=&ued=${encodedEtsy}`;
+    }
+    default:
+      return `https://www.google.com/search?q=${encodedQuery}`;
+  }
+}
+
+// --- TEIL 2: Die Handler-Funktion (leicht korrigiert) ---
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
@@ -16,7 +58,7 @@ module.exports = async function handler(req, res) {
   const prompt = `
 Du bist ein kreativer Geschenkideen-Experte.
 
-1️⃣ Erstelle zuerst genau 10 Geschenkideen die es auf Amazon gibt als JSON-ARRAY:
+1️⃣ Erstelle zuerst genau 10 Geschenkideen die auf Amazon zu finden sind als JSON-ARRAY:
 [
   { "produkt": "<Produktname>", "beschreibung": "<Kurzbeschreibung>", "plattform": "Amazon|Otto|Etsy" },
   ...
@@ -39,6 +81,7 @@ Antwortformat:
 }
 NUR dieses JSON zurückgeben.`;
 
+  let rawResponseFromAI = "";
   try {
     const response = await fetch(GEMINI_ENDPOINT, {
       method: "POST",
@@ -49,16 +92,14 @@ NUR dieses JSON zurückgeben.`;
     if (!response.ok) {
       const errText = await response.text();
       console.error("❌ Gemini API-Fehler:", response.status, errText);
-      return res.status(502).json({ ideas: [], blog: "" });
+      return res.status(502).json({ error: "Fehler bei der Kommunikation mit der AI." });
     }
 
     const result = await response.json();
-    const raw = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    rawResponseFromAI = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-    // NEU: Bereinigen des Strings von Markdown-Codeblöcken
-    const cleanedJsonString = raw.replace(/^```json\s*/, '').replace(/```$/, '').trim();
-
-    const parsed = JSON.parse(cleanedJsonString); // NEU: Den bereinigten String parsen
+    const cleanedJsonString = rawResponseFromAI.replace(/^```json\s*/, '').replace(/```$/, '').trim();
+    const parsed = JSON.parse(cleanedJsonString);
     
     const ideas = parsed.ideas.map((idee) => ({
       ...idee,
@@ -74,9 +115,8 @@ NUR dieses JSON zurückgeben.`;
 
     return res.status(200).json({ ideas, blog: blogHtml });
   } catch (err) {
-    console.error("❌ Fehler bei Verarbeitung:", err);
-    // Loggen Sie den rohen Text, um zu sehen, was die KI gesendet hat
-    console.error("Roh-Text von der KI:", raw); 
-    return res.status(500).json({ ideas: [], blog: "" });
+    console.error("❌ Fehler bei Verarbeitung:", err.message);
+    console.error("Roh-Antwort von der KI, die den Fehler verursachte:", rawResponseFromAI); 
+    return res.status(500).json({ error: "Fehler bei der Verarbeitung der AI-Antwort." });
   }
 };
