@@ -1,22 +1,24 @@
 import React, { useState, useEffect } from 'react';
-
-// KORREKTE IMPORTE
 import Header from './components/Header';
-import SetupSection from './components/SetupSection';
 import TopicSection from './components/TopicSection';
 import StatusSection from './components/StatusSection';
-import ResultsSection from './components/ResultsSection'; // Importiert den Default Export
+import ResultsSection from './components/ResultsSection';
 
 export default function App() {
   const [connectionOnline, setConnectionOnline] = useState(navigator.onLine);
   
-  const [config, setConfig] = useState({
-    geminiModel: 'gemini-pro',
+  // Der State wird an die neuen Felder angepasst
+  const [topicData, setTopicData] = useState({
+    alter: "",
+    beruf: "",
+    hobby: "",
+    anlass: "",
+    stil: "",
+    budget: ""
   });
 
-  const [topicData, setTopicData] = useState({ topic: '', style: 'professional' });
   const [status, setStatus] = useState({});
-  const [results, setResults] = useState({ blog: '', image: '' });
+  const [results, setResults] = useState({ blog: '', ideas: [] }); // results-State erweitert
   const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
@@ -30,41 +32,29 @@ export default function App() {
   }, []);
   
   const handleGenerate = async () => {
-    if (!topicData.topic) {
-      setStatus({ validation: { state: 'error', text: 'Bitte ein Thema eingeben!' } });
-      return;
-    }
-    
     setIsGenerating(true);
-    setStatus({});
-    setResults({ blog: '', image: '' });
+    setStatus({ blog: { state: 'loading', text: 'Blogpost & Ideen werden generiert...' } });
+    setResults({ blog: '', ideas: [] });
 
     try {
-      setStatus({ blog: { state: 'loading', text: 'Blogpost wird generiert...' } });
-      const blogRes = await fetch('/api/generate-blog', {
+      // Ruft den neuen Endpunkt auf
+      const res = await fetch('/api/suggest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...topicData, model: config.geminiModel })
+        body: JSON.stringify(topicData) // Sendet alle Daten
       });
-      if (!blogRes.ok) throw new Error(`Blog-Generierung fehlgeschlagen.`);
-      const blogData = await blogRes.json();
-      setStatus(s => ({ ...s, blog: { state: 'success', text: 'Blogpost erstellt!' } }));
 
-      setStatus(s => ({ ...s, image: { state: 'loading', text: 'Bild wird generiert...' } }));
-      const imageRes = await fetch('/api/generate-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic: topicData.topic })
-      });
-      if (!imageRes.ok) throw new Error(`Bild-Generierung fehlgeschlagen.`);
-      const imageData = await imageRes.json();
+      if (!res.ok) {
+        throw new Error(`Fehler vom Server: ${res.status}`);
+      }
       
-      setResults({ blog: blogData.blogContent, image: imageData.imageUrl });
-      setStatus(s => ({ ...s, image: { state: 'success', text: 'Bild erstellt!' } }));
+      const data = await res.json();
+      setResults({ blog: data.blog, ideas: data.ideas });
+      setStatus({ blog: { state: 'success', text: 'Inhalte erfolgreich generiert!' } });
 
     } catch (err) {
       console.error(err);
-      setStatus(s => ({ ...s, error: { state: 'error', text: err.message } }));
+      setStatus({ ...status, error: { state: 'error', text: err.message } });
     } finally {
       setIsGenerating(false);
     }
@@ -77,7 +67,7 @@ export default function App() {
       </div>
       <Header />
       <div className="main-content">
-        <SetupSection config={config} setConfig={setConfig} />
+        {/* Die Komponenten bleiben gleich, übergeben aber den neuen State */}
         <TopicSection topicData={topicData} setTopicData={setTopicData} onGenerate={handleGenerate} isGenerating={isGenerating} />
         <StatusSection status={status} />
         <ResultsSection results={results} />
