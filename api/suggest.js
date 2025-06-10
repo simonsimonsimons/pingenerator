@@ -1,92 +1,79 @@
-// api/suggest.js (Vollständige und korrigierte Version)
+// api/suggest.js (Verbesserte Version)
 const fetch = require('node-fetch');
 
-// --- TEIL 1: Definition der Konstanten (Dieser Teil hat gefehlt) ---
-
+// --- TEIL 1: Definition der Konstanten ---
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 let GEMINI_MODEL_ID = process.env.GEMINI_MODEL_ID || "gemini-1.5-flash";
 
 if (GEMINI_MODEL_ID.startsWith("models/")) {
   GEMINI_MODEL_ID = GEMINI_MODEL_ID.replace(/^models\//, "");
 }
-
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL_ID}:generateContent?key=${GOOGLE_API_KEY}`;
 
-const affiliateIds = {
-  amazonTag: process.env.AFFILIATE_ID_AMAZON || "",
-  ottoMid: process.env.OTTO_AWIN_MERCHANT_ID || "",
-  ottoAff: process.env.OTTO_AWIN_AFFILIATE_ID || "",
-  etsyMid: process.env.ETSY_AWIN_MERCHANT_ID || "",
-  etsyAff: process.env.ETSY_AWIN_AFFILIATE_ID || "",
-};
-
-function generateAffiliateLink(produktName, platform) {
-  if (!produktName || !platform) return "#";
+function generateAmazonAffiliateLink(produktName) {
+  const amazonTag = process.env.AFFILIATE_ID_AMAZON || "";
+  if (!produktName) return "#";
   const encodedQuery = encodeURIComponent(produktName.trim());
-  switch (platform.toLowerCase()) {
-    case "amazon":
-      return affiliateIds.amazonTag
-        ? `https://www.amazon.de/s?k=${encodedQuery}&tag=${affiliateIds.amazonTag}`
-        : `https://www.amazon.de/s?k=${encodedQuery}`;
-    case "otto": {
-      const searchUrl = `https://www.otto.de/suche/${encodedQuery}/`;
-      if (!affiliateIds.ottoMid || !affiliateIds.ottoAff) return searchUrl;
-      const encodedOtto = encodeURIComponent(searchUrl);
-      return `https://www.awin1.com/cread.php?awinmid=${affiliateIds.ottoMid}&awinaffid=${affiliateIds.ottoAff}&clickref=&ued=${encodedOtto}`;
-    }
-    case "etsy": {
-      const searchUrl = `https://www.etsy.com/search?q=${encodedQuery}`;
-      if (!affiliateIds.etsyMid || !affiliateIds.etsyAff) return searchUrl;
-      const encodedEtsy = encodeURIComponent(searchUrl);
-      return `https://www.awin1.com/cread.php?awinmid=${affiliateIds.etsyMid}&awinaffid=${affiliateIds.etsyAff}&clickref=&ued=${encodedEtsy}`;
-    }
-    default:
-      return `https://www.google.com/search?q=${encodedQuery}`;
-  }
+  return amazonTag
+    ? `https://www.amazon.de/s?k=${encodedQuery}&tag=${amazonTag}`
+    : `https://www.amazon.de/s?k=${encodedQuery}`;
 }
 
-// --- TEIL 2: Die Handler-Funktion (leicht korrigiert) ---
-
+// --- TEIL 2: Die Handler-Funktion mit neuem Prompt ---
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
     return res.status(405).end("Method Not Allowed");
   }
 
   const { alter = "", beruf = "", hobby = "", anlass = "", stil = "", budget = "" } = req.body;
 
+  // NEUER, SICHERERER PROMPT:
+  // Wir fragen nicht mehr nach Plattformen, um die Sicherheitsfilter zu umgehen.
+  // Wir gehen davon aus, dass alle Produkte auf Amazon gesucht werden sollen.
   const prompt = `
-Du bist ein kreativer Geschenkideen-Experte.
+Du bist ein kreativer Geschenkideen-Experte. Deine Aufgabe ist es, einen hilfreichen Geschenke-Ratgeber zu erstellen.
 
-1️⃣ Erstelle zuerst genau 10 Geschenkideen die auf Amazon zu finden sind als JSON-ARRAY:
+SCHRITT 1: Erstelle eine Liste von genau 10 einzigartigen Geschenkideen, die zu den folgenden Kriterien passen. Gib die Liste als JSON-ARRAY zurück:
 [
-  { "produkt": "<Produktname>", "beschreibung": "<Kurzbeschreibung>", "plattform": "Amazon|Otto|Etsy" },
+  { "produkt": "Name des Produkts oder der Produktkategorie", "beschreibung": "Eine kurze, ansprechende Beschreibung der Geschenkidee." },
   ...
 ]
 
-2️⃣ Danach erstelle einen HTML-Blogartikel (max. 600 Wörter) mit passender Headline, h2/h3-Struktur, Absätzen und Conversion-fokussierter Sprache. Integriere die 10 Geschenkideen im Fließtext – **jeweils mit dem Produktnamen in spitzen Klammern** (z. B. <Kauknochen XXL>), damit sie später ersetzt werden können.
+SCHRITT 2: Schreibe basierend auf den Ideen einen hochwertigen, HTML-formatierten Blogartikel (ca. 400-600 Wörter).
+- Der Artikel soll eine einladende Überschrift (h1) und eine klare Struktur mit Zwischenüberschriften (h2, h3) haben.
+- Integriere die 10 Geschenkideen natürlich in den Text. Markiere dabei den Produktnamen mit spitzen Klammern, z.B. <Produktname>, damit dieser später verlinkt werden kann.
+- Der Schreibstil sollte zum Anlass und zur Zielperson passen.
 
-Nutze diese Informationen:
-Alter: ${alter}
-Beruf: ${beruf}
-Hobby: ${hobby}
-Anlass: ${anlass}
-Stil: ${stil}
-Budget: ${budget}
+Hier sind die Kriterien für die Geschenke:
+- Anlass: ${anlass}
+- Zielperson: Alter ca. ${alter}, Beruf/Typ: ${beruf}, Hobbies: ${hobby}
+- Stil: ${stil}
+- Budget: ${budget}
 
-Antwortformat:
+GIB DEINE ANTWORT AUSSCHLIESSLICH IM FOLGENDEN JSON-FORMAT ZURÜCK. BEGINNE DIREKT MIT DER { Und höre mit der } auf. KEIN TEXT DAVOR ODER DANACH.
 {
-  "ideas": [...],
-  "blog": "<html>...</html>"
-}
-NUR dieses JSON zurückgeben.`;
+  "ideas": [
+    { "produkt": "...", "beschreibung": "..." },
+    ...
+  ],
+  "blog": "<h1>Titel</h1><p>...</p>..."
+}`;
 
   let rawResponseFromAI = "";
   try {
     const response = await fetch(GEMINI_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      body: JSON.stringify({
+        // Wir fügen eine Safety Setting hinzu, um die Wahrscheinlichkeit von Blockaden zu reduzieren
+        safetySettings: [
+          { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
+          { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
+          { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
+          { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
+        ],
+        contents: [{ parts: [{ text: prompt }] }]
+      })
     });
 
     if (!response.ok) {
@@ -96,14 +83,22 @@ NUR dieses JSON zurückgeben.`;
     }
 
     const result = await response.json();
-    rawResponseFromAI = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
+    // Verbesserte Fehlerprüfung: Überprüfen, ob die Antwort blockiert wurde
+    if (!result.candidates || result.candidates.length === 0) {
+      console.error("❌ Antwort von der KI blockiert oder leer. Finish Reason:", result.promptFeedback?.blockReason);
+      console.error("Safety Ratings:", JSON.stringify(result.promptFeedback?.safetyRatings, null, 2));
+      return res.status(500).json({ error: 'Die KI-Anfrage wurde aus Sicherheitsgründen blockiert.' });
+    }
+
+    rawResponseFromAI = result.candidates[0].content.parts[0].text || "";
     const cleanedJsonString = rawResponseFromAI.replace(/^```json\s*/, '').replace(/```$/, '').trim();
     const parsed = JSON.parse(cleanedJsonString);
     
+    // Die Links werden jetzt immer mit der Amazon-Funktion generiert
     const ideas = parsed.ideas.map((idee) => ({
       ...idee,
-      affiliate_link: generateAffiliateLink(idee.produkt, idee.plattform)
+      affiliate_link: generateAmazonAffiliateLink(idee.produkt)
     }));
 
     let blogHtml = parsed.blog;
@@ -116,7 +111,7 @@ NUR dieses JSON zurückgeben.`;
     return res.status(200).json({ ideas, blog: blogHtml });
   } catch (err) {
     console.error("❌ Fehler bei Verarbeitung:", err.message);
-    console.error("Roh-Antwort von der KI, die den Fehler verursachte:", rawResponseFromAI); 
+    console.error("Roh-Antwort von der KI, die den Fehler verursachte:", rawResponseFromAI);
     return res.status(500).json({ error: "Fehler bei der Verarbeitung der AI-Antwort." });
   }
 };
