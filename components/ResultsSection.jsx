@@ -1,20 +1,26 @@
 import React from 'react';
 
-export default function ResultsSection({ results }) {
-  if (!results.blog && !results.image) return null;
+export function ResultsSection({ results }) {
+  if (!results.blog) return null;
 
   return (
-    <div className="results-section">
-      {results.blog && (
-        <div className="result-card">
-          <div className="result-header">📄 Blogpost Vorschau</div>
-          <div className="blog-preview" dangerouslySetInnerHTML={{ __html: results.blog }} />
-        </div>
-      )}
-      {results.image && (
-        <div className="result-card">
-          <div className="result-header">🎨 Pinterest-Bild</div>
-          <img className="image-preview" src={results.image} alt="Generiertes Pinterest-Bild" />
+    <div className="result-card">
+      <div className="result-header">📄 Blogpost Vorschau</div>
+      <div
+        className="blog-preview"
+        dangerouslySetInnerHTML={{ __html: results.blog }}
+      />
+
+      {/* Affiliate-Link aus Env (für CRA) */}
+      {process.env.REACT_APP_AFFILIATE_LINK && (
+        <div className="affiliate-link" style={{ marginTop: '1rem' }}>
+          <a
+            href={process.env.REACT_APP_AFFILIATE_LINK}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Unterstütze uns mit einem Klick auf diesen Link
+          </a>
         </div>
       )}
     </div>
