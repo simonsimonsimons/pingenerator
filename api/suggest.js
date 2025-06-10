@@ -1,7 +1,6 @@
-// api/suggest.js (Version mit detailliertem Logging)
 const fetch = require('node-fetch');
 
-// --- TEIL 1: Definition der Konstanten (unverändert) ---
+// --- Konstanten und Hilfsfunktionen (unverändert) ---
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 let GEMINI_MODEL_ID = process.env.GEMINI_MODEL_ID || "gemini-1.5-flash";
 
@@ -12,7 +11,7 @@ const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models
 
 function generateAmazonAffiliateLink(produktName) {
   const amazonTag = process.env.AFFILIATE_ID_AMAZON || "";
-  if (!produktName || produktName.trim() === "") return "#"; // WICHTIG: Prüft auf leere Produktnamen
+  if (!produktName || produktName.trim() === "") return "#";
   const encodedQuery = encodeURIComponent(produktName.trim());
   return amazonTag
     ? `https://www.amazon.de/s?k=${encodedQuery}&tag=${amazonTag}`
@@ -23,16 +22,22 @@ function escapeRegExp(string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// --- TEIL 2: Die Handler-Funktion mit Debug-Logs ---
+// --- Handler-Funktion mit angepasstem Prompt ---
 module.exports = async function handler(req, res) {
-  // ... (Ihr Prompt und die Anfrage-Vorbereitung bleiben gleich) ...
+  if (req.method !== "POST") {
+    return res.status(405).end("Method Not Allowed");
+  }
+
   const { alter = "", beruf = "", hobby = "", anlass = "", stil = "", budget = "" } = req.body;
+
+  // ANGEPASSTER PROMPT
   const prompt = `
 Du bist ein kreativer Geschenkideen-Experte. Deine Aufgabe ist es, einen hilfreichen Geschenke-Ratgeber zu erstellen.
 
-SCHRITT 1: Erstelle eine Liste von genau 10 einzigartigen Geschenkideen, die zu den folgenden Kriterien passen. Gib die Liste als JSON-ARRAY zurück:
+SCHRITT 1: Erstelle eine Liste von genau 10 einzigartigen Geschenkideen, die zu den folgenden Kriterien passen. Gib die Liste als JSON-ARRAY zurück.
+**WICHTIG: Die Geschenkideen sollen gängige und auf Amazon leicht auffindbare Produkte sein. Vermeide sehr spezielle oder handgefertigte Einzelstücke.**
 [
-  { "produkt": "Name des Produkts oder der Produktkategorie", "beschreibung": "Eine kurze, ansprechende Beschreibung der Geschenkidee." },
+  { "produkt": "Allgemeiner, suchbarer Produktname", "beschreibung": "Eine kurze, ansprechende Beschreibung der Geschenkidee." },
   ...
 ]
 
@@ -91,32 +96,16 @@ GIB DEINE ANTWORT AUSSCHLIESSLICH IM FOLGENDEN JSON-FORMAT ZURÜCK. BEGINNE DIRE
       ...idee,
       affiliate_link: generateAmazonAffiliateLink(idee.produkt)
     }));
-    
-    // --- NEU: Detailliertes Logging ---
-    console.log("===== DEBUG-START =====");
-    console.log("Generierte Ideen mit Links:", JSON.stringify(ideas, null, 2));
-    console.log("Blog-HTML von der KI (vor Ersetzung):", parsed.blog);
-    
+
     let blogHtml = parsed.blog;
     for (const idee of ideas) {
-      // Log für jede einzelne Ersetzung
-      console.log(`Versuche, Platzhalter für Produkt zu ersetzen: "${idee.produkt}"`);
-      
-      const escapedProdukt = escapeRegExp(idee.produkt || ""); // || "" fängt leere Produkte ab
-      if (!escapedProdukt) continue; // Überspringe leere Produkte
+      const escapedProdukt = escapeRegExp(idee.produkt || "");
+      if (!escapedProdukt) continue;
 
       const regex = new RegExp(`<${escapedProdukt}>`, "gi");
-      
-      if (regex.test(blogHtml)) {
-        console.log(`  -> Platzhalter gefunden!`);
-      } else {
-        console.log(`  -> WARNUNG: Platzhalter wurde im Text NICHT gefunden!`);
-      }
-
       const anchor = `<a href="${idee.affiliate_link}" target="_blank" rel="noopener noreferrer">${idee.produkt}</a>`;
       blogHtml = blogHtml.replace(regex, anchor);
     }
-    console.log("===== DEBUG-ENDE =====");
     
     return res.status(200).json({ ideas, blog: blogHtml });
   } catch (err) {
