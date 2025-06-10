@@ -1,26 +1,37 @@
 import React from 'react';
 
-// KORREKTER DEFAULT EXPORT
 export default function ResultsSection({ results }) {
-  if (!results.blog && !results.image) return null;
+  if (results.length === 0) {
+    return null;
+  }
 
   return (
     <div className="results-section">
-      {results.blog && (
-        <div className="result-card">
-          <div className="result-header">📄 Blogpost Vorschau</div>
-          <div className="blog-preview" dangerouslySetInnerHTML={{ __html: results.blog }} />
-        </div>
-      )}
-      {results.image && (
-        <div className="result-card">
-          <div className="result-header">🎨 Pinterest-Bild</div>
-          <img className="image-preview" src={results.image} alt="Generiertes Pinterest-Bild" />
-        </div>
-      )}
-
-      {/* Affiliate-Link wird hier nicht mehr direkt aus process.env gelesen.
-          Das sollte serverseitig passieren und als Teil des blog-Inhalts kommen. */}
+      <h3>📋 Verarbeitungs-Protokoll</h3>
+      <table className="results-table">
+        <thead>
+          <tr>
+            <th>Zeile</th>
+            <th>Thema</th>
+            <th>Status</th>
+            <th>Link</th>
+          </tr>
+        </thead>
+        <tbody>
+          {results.map((item, index) => (
+            <tr key={index} className={`status-${item.status}`}>
+              <td>{index + 1}</td>
+              <td>{item.topic}</td>
+              <td>{item.message}</td>
+              <td>
+                {item.postUrl ? 
+                  <a href={item.postUrl} target="_blank" rel="noopener noreferrer">Ansehen</a> : '-'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
+// Fügen Sie CSS für die Tabelle in App.css hinzu (siehe unten)

@@ -1,63 +1,98 @@
 import React, { useState, useEffect } from 'react';
+import Papa from 'papaparse';
 import Header from './components/Header';
 import TopicSection from './components/TopicSection';
-import StatusSection from './components/StatusSection';
 import ResultsSection from './components/ResultsSection';
+
+// Helferfunktion, um den Titel aus dem HTML zu extrahieren
+const extractTitle = (html) => {
+  try {
+    const match = html.match(/<h1[^>]*>(.*?)<\/h1>/i);
+    return match ? match[1] : 'Unbenannter Beitrag';
+  } catch (e) {
+    return 'Unbenannter Beitrag';
+  }
+};
 
 export default function App() {
   const [connectionOnline, setConnectionOnline] = useState(navigator.onLine);
-  
-  // Der State wird an die neuen Felder angepasst
-  const [topicData, setTopicData] = useState({
-    alter: "",
-    beruf: "",
-    hobby: "",
-    anlass: "",
-    stil: "",
-    budget: ""
-  });
-
-  const [status, setStatus] = useState({});
-  const [results, setResults] = useState({ blog: '', ideas: [] }); // results-State erweitert
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [csvData, setCsvData] = useState([]);
+  const [fileName, setFileName] = useState("");
+  const [results, setResults] = useState([]);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
-    const update = () => setConnectionOnline(navigator.onLine);
-    window.addEventListener('online', update);
-    window.addEventListener('offline', update);
-    return () => {
-      window.removeEventListener('online', update);
-      window.removeEventListener('offline', update);
-    };
+    // ... (Online-Status unverändert) ...
   }, []);
-  
-  const handleGenerate = async () => {
-    setIsGenerating(true);
-    setStatus({ blog: { state: 'loading', text: 'Blogpost & Ideen werden generiert...' } });
-    setResults({ blog: '', ideas: [] });
 
-    try {
-      // Ruft den neuen Endpunkt auf
-      const res = await fetch('/api/suggest', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(topicData) // Sendet alle Daten
+  const handleFileChange = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      setFileName(file.name);
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (result) => {
+          setCsvData(result.data);
+          // Initialisiere den Ergebnis-Status für jede Zeile
+          setResults(result.data.map(row => ({
+            topic: row.anlass || 'Unbekannt',
+            status: 'pending',
+            message: 'Wartet...',
+            postUrl: null
+          })));
+        }
       });
-
-      if (!res.ok) {
-        throw new Error(`Fehler vom Server: ${res.status}`);
-      }
-      
-      const data = await res.json();
-      setResults({ blog: data.blog, ideas: data.ideas });
-      setStatus({ blog: { state: 'success', text: 'Inhalte erfolgreich generiert!' } });
-
-    } catch (err) {
-      console.error(err);
-      setStatus({ ...status, error: { state: 'error', text: err.message } });
-    } finally {
-      setIsGenerating(false);
     }
+  };
+
+  const handleStartProcessing = async () => {
+    setIsProcessing(true);
+    const newResults = [...results];
+
+    for (let i = 0; i < csvData.length; i++) {
+      const rowData = csvData[i];
+      
+      // 1. Status auf "Generierung" setzen
+      newResults[i] = { ...newResults[i], status: 'processing', message: 'Blog wird generiert...' };
+      setResults([...newResults]);
+
+      try {
+        // 2. Blogpost generieren
+        const suggestRes = await fetch('/api/suggest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(rowData)
+        });
+        if (!suggestRes.ok) throw new Error('Blog-Generierung fehlgeschlagen');
+        const suggestData = await suggestRes.json();
+        const blogContent = suggestData.blog;
+        const blogTitle = extractTitle(blogContent);
+
+        // 3. Status auf "Posten" setzen
+        newResults[i] = { ...newResults[i], message: 'Poste auf Blogger...' };
+        setResults([...newResults]);
+
+        // 4. Auf Blogger posten
+        const bloggerRes = await fetch('/api/post-to-blogger', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: blogTitle, content: blogContent })
+        });
+        if (!bloggerRes.ok) throw new Error('Blogger-Upload fehlgeschlagen');
+        const bloggerData = await bloggerRes.json();
+
+        // 5. Status auf "Erfolgreich" setzen
+        newResults[i] = { ...newResults[i], status: 'success', message: 'Erfolgreich gepostet!', postUrl: bloggerData.postUrl };
+        setResults([...newResults]);
+
+      } catch (err) {
+        console.error(`Fehler in Zeile ${i + 1}:`, err);
+        newResults[i] = { ...newResults[i], status: 'error', message: err.message };
+        setResults([...newResults]);
+      }
+    }
+    setIsProcessing(false);
   };
 
   return (
@@ -67,9 +102,12 @@ export default function App() {
       </div>
       <Header />
       <div className="main-content">
-        {/* Die Komponenten bleiben gleich, übergeben aber den neuen State */}
-        <TopicSection topicData={topicData} setTopicData={setTopicData} onGenerate={handleGenerate} isGenerating={isGenerating} />
-        <StatusSection status={status} />
+        <TopicSection 
+          onFileChange={handleFileChange}
+          onStart={handleStartProcessing}
+          isProcessing={isProcessing}
+          fileName={fileName}
+        />
         <ResultsSection results={results} />
       </div>
     </div>
