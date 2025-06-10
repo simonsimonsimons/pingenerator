@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import Header from '../components/Header';
-import SetupSection from '../components/SetupSection';
-import TopicSection from '../components/TopicSection';
-import StatusSection from '../components/StatusSection';
-import ResultsSection from '../components/ResultsSection';
+import Header from './components/Header';
+import SetupSection from './components/SetupSection';
+import TopicSection from './components/TopicSection';
+import StatusSection from './components/StatusSection';
+import ResultsSection from './components/ResultsSection';
 
 export default function App() {
   const [connectionOnline, setConnectionOnline] = useState(navigator.onLine);
