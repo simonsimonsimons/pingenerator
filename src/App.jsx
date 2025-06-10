@@ -7,27 +7,25 @@ import ResultsSection from './components/ResultsSection';
 const extractTitle = (html) => {
   try {
     const match = html.match(/<h1[^>]*>(.*?)<\/h1>/i);
-    return match ? match[1] : 'Unbenannter Beitrag';
+    return match ? match[1].trim() : 'Beitrag ohne Titel';
   } catch (e) {
-    return 'Unbenannter Beitrag';
+    return 'Beitrag ohne Titel';
   }
 };
 
 export default function App() {
-  const [inputMode, setInputMode] = useState('manual'); // 'manual' or 'csv'
-  const [manualData, setManualData] = useState({ anlass: "", hobby: "" });
-  const [csvData, setCsvData] = useState([]);
+  const [inputMode, setInputMode] = useState('manual');
+  const [manualData, setManualData] = useState({ anlass: "", alter: "", beruf: "", hobby: "", stil: "", budget: "" });
+  const [dataToProcess, setDataToProcess] = useState([]);
+  
   const [fileName, setFileName] = useState("");
   const [results, setResults] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [stagedPost, setStagedPost] = useState(null); // NEU: Für den Artikel, der auf Freigabe wartet
 
-  // useRef, um den State in der asynchronen Verarbeitung aktuell zu halten
   const resultsRef = useRef(results);
   resultsRef.current = results;
-  const isPausedRef = useRef(isPaused);
-  isPausedRef.current = isPaused;
 
   const handleFileChange = (event) => {
     const file = event.target.files[0];
@@ -36,98 +34,108 @@ export default function App() {
       Papa.parse(file, {
         header: true,
         skipEmptyLines: true,
-        complete: (result) => {
-          setCsvData(result.data);
-          setResults(result.data.map(row => ({
-            topic: row.anlass || 'Unbekannt',
-            status: 'pending',
-            message: 'Wartet...',
-            postUrl: null
-          })));
-        }
+        complete: (result) => setDataToProcess(result.data)
       });
     }
   };
 
-  const startProcessing = (dataToProcess) => {
-    setResults(dataToProcess.map(row => ({
-      topic: row.anlass || row.hobby || 'Einzel-Job',
+  const startProcessing = () => {
+    const data = (inputMode === 'manual') ? [manualData] : dataToProcess;
+    if (data.length === 0) return;
+
+    setResults(data.map(row => ({
+      topic: row.anlass || row.hobby || 'Einzelner Beitrag',
       status: 'pending',
       message: 'Wartet...',
       postUrl: null
     })));
     setCurrentIndex(0);
-    setIsPaused(false);
     setIsProcessing(true);
   };
   
-  const handleStart = () => {
-    if (inputMode === 'manual') {
-      startProcessing([manualData]);
-    } else {
-      startProcessing(csvData);
+  const processRow = async (index) => {
+    if (index >= dataToProcess.length) {
+      setIsProcessing(false);
+      return;
+    }
+    
+    const rowData = dataToProcess[index];
+    let newResults = [...resultsRef.current];
+    newResults[index] = { ...newResults[index], status: 'processing', message: 'Blog wird generiert...' };
+    setResults([...newResults]);
+
+    try {
+      const suggestRes = await fetch('/api/suggest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(rowData)
+      });
+      if (!suggestRes.ok) throw new Error('Blog-Generierung fehlgeschlagen');
+      const suggestData = await suggestRes.json();
+
+      setStagedPost({
+        index: index,
+        title: extractTitle(suggestData.blog),
+        content: suggestData.blog
+      });
+      
+      newResults = [...resultsRef.current];
+      newResults[index] = { ...newResults[index], status: 'review', message: 'Wartet auf Freigabe...' };
+      setResults([...newResults]);
+
+    } catch (err) {
+      newResults = [...resultsRef.current];
+      newResults[index] = { ...newResults[index], status: 'error', message: err.message };
+      setResults([...newResults]);
+      // Automatisch mit dem nächsten weitermachen, auch bei Fehler
+      setCurrentIndex(index + 1); 
     }
   };
 
-  const togglePause = () => {
-    setIsPaused(!isPaused);
+  useEffect(() => {
+    if (isProcessing && !stagedPost) {
+      processRow(currentIndex);
+    }
+  }, [isProcessing, currentIndex, stagedPost]);
+
+
+  const handleApproveAndPost = async () => {
+    if (!stagedPost) return;
+
+    const { index, title, content } = stagedPost;
+    let newResults = [...results];
+    newResults[index] = { ...newResults[index], status: 'processing', message: 'Poste auf Blogger...' };
+    setResults([...newResults]);
+    setStagedPost(null); // Vorschau leeren
+
+    try {
+      const bloggerRes = await fetch('/api/post-to-blogger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, content })
+      });
+      if (!bloggerRes.ok) throw new Error('Blogger-Upload fehlgeschlagen');
+      const bloggerData = await bloggerRes.json();
+      
+      newResults = [...resultsRef.current];
+      newResults[index] = { ...newResults[index], status: 'success', message: 'Erfolgreich gepostet!', postUrl: bloggerData.postUrl };
+      setResults([...newResults]);
+    } catch (err) {
+      newResults = [...resultsRef.current];
+      newResults[index] = { ...newResults[index], status: 'error', message: err.message };
+      setResults([...newResults]);
+    } finally {
+      // Nächsten Artikel in der Liste bearbeiten
+      setCurrentIndex(currentIndex + 1);
+    }
   };
 
-  useEffect(() => {
-    if (!isProcessing || isPausedRef.current) return;
-
-    const processRow = async (index) => {
-      if (index >= csvData.length && inputMode === 'csv' || index >= 1 && inputMode === 'manual') {
-        setIsProcessing(false);
-        return;
-      }
-      
-      const data = (inputMode === 'manual') ? [manualData][index] : csvData[index];
-      let newResults = [...resultsRef.current];
-
-      try {
-        newResults[index] = { ...newResults[index], status: 'processing', message: 'Blog wird generiert...' };
-        setResults([...newResults]);
-
-        const suggestRes = await fetch('/api/suggest', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data)
-        });
-        if (!suggestRes.ok) throw new Error('Blog-Generierung fehlgeschlagen');
-        const suggestData = await suggestRes.json();
-        const blogContent = suggestData.blog;
-        const blogTitle = extractTitle(blogContent);
-
-        newResults = [...resultsRef.current];
-        newResults[index] = { ...newResults[index], message: 'Poste auf Blogger...' };
-        setResults([...newResults]);
-
-        const bloggerRes = await fetch('/api/post-to-blogger', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title: blogTitle, content: blogContent })
-        });
-        if (!bloggerRes.ok) throw new Error('Blogger-Upload fehlgeschlagen');
-        const bloggerData = await bloggerRes.json();
-
-        newResults = [...resultsRef.current];
-        newResults[index] = { ...newResults[index], status: 'success', message: 'Erfolgreich gepostet!', postUrl: bloggerData.postUrl };
-        setResults([...newResults]);
-
-      } catch (err) {
-        newResults = [...resultsRef.current];
-        newResults[index] = { ...newResults[index], status: 'error', message: err.message };
-        setResults([...newResults]);
-      } finally {
-        setCurrentIndex(index + 1);
-      }
-    };
-    
-    processRow(currentIndex);
-
-  }, [isProcessing, currentIndex, inputMode, manualData, csvData]);
-
+  const handleRegenerate = () => {
+    if (!stagedPost) return;
+    const { index } = stagedPost;
+    setStagedPost(null);
+    processRow(index); // Den Generierungsprozess für den aktuellen Index neu starten
+  };
 
   return (
     <div className="container">
@@ -140,18 +148,10 @@ export default function App() {
           setTopicData={setManualData}
           onFileChange={handleFileChange}
           fileName={fileName}
-          onStart={handleStart}
+          onStart={startProcessing}
           isProcessing={isProcessing}
         />
-        {isProcessing && (
-          <div className="controls">
-            <button onClick={togglePause}>
-              {isPaused ? '▶️ Weiter' : '⏸️ Pause'}
-            </button>
-          </div>
-        )}
-        <ResultsSection results={results} />
-      </div>
-    </div>
-  );
-}
+        <ResultsSection 
+          results={results}
+          stagedPost={stagedPost}
+          on

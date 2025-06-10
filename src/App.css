@@ -1,38 +1,40 @@
-/* Zusätzliches CSS für Tabs und Controls */
+/* Zusätzliche Stile für Freigabe-Sektion */
 
-.tab-buttons {
-  display: flex;
-  border-bottom: 2px solid #eee;
-  margin-bottom: 20px;
-}
-.tab-buttons button {
-  padding: 10px 20px;
-  border: none;
-  background-color: transparent;
-  color: #666;
-  cursor: pointer;
-  font-size: 16px;
-  border-bottom: 3px solid transparent;
-  margin-bottom: -2px;
-}
-.tab-buttons button.active {
-  color: #007bff;
-  border-bottom-color: #007bff;
-}
-.tab-content {
-  padding: 10px 0;
+.review-card {
+  border: 2px solid #007bff;
+  padding: 20px;
+  border-radius: 8px;
+  background-color: #f8f9fa;
+  margin-bottom: 20px; /* Wird über der Progress-Tabelle angezeigt */
 }
 
-.controls {
+.review-actions {
+  margin-top: 20px;
   display: flex;
-  justify-content: center;
-  margin-top: -15px;
+  gap: 15px;
 }
-.controls button {
-  background-color: #ffc107;
-  color: #212529;
+
+.review-actions button {
   font-weight: bold;
 }
-.controls button:hover {
+
+.approve-btn {
+  background-color: #28a745;
+}
+.approve-btn:hover {
+  background-color: #218838;
+}
+
+.regenerate-btn {
+  background-color: #ffc107;
+  color: #212529;
+}
+.regenerate-btn:hover {
   background-color: #e0a800;
+}
+
+.progress-card {
+  border: 1px solid #ddd;
+  padding: 20px;
+  border-radius: 8px;
 }

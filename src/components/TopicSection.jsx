@@ -37,10 +37,25 @@ export default function TopicSection({
               <label>Anlass:</label>
               <input type="text" value={topicData.anlass} onChange={e => updateManual('anlass', e.target.value)} placeholder="z.B. Geburtstag, Weihnachten" />
             </div>
-            {/* Fügen Sie hier die anderen manuellen Eingabefelder wieder hinzu (Alter, Beruf, etc.) */}
+            <div className="form-group">
+              <label>Alter (ca.):</label>
+              <input type="text" value={topicData.alter} onChange={e => updateManual('alter', e.target.value)} placeholder="z.B. 30" />
+            </div>
+            <div className="form-group">
+              <label>Beruf/Typ:</label>
+              <input type="text" value={topicData.beruf} onChange={e => updateManual('beruf', e.target.value)} placeholder="z.B. Büroangestellte, Sportler" />
+            </div>
             <div className="form-group">
               <label>Hobby/Interessen:</label>
-              <input type="text" value={topicData.hobby} onChange={e => updateManual('hobby', e.target.value)} placeholder="z.B. Kochen, Wandern" />
+              <input type="text" value={topicData.hobby} onChange={e => updateManual('hobby', e.target.value)} placeholder="z.B. Lesen, Gartenarbeit" />
+            </div>
+            <div className="form-group">
+              <label>Stil:</label>
+              <input type="text" value={topicData.stil} onChange={e => updateManual('stil', e.target.value)} placeholder="z.B. humorvoll, luxuriös, praktisch" />
+            </div>
+            <div className="form-group">
+              <label>Budget (optional):</label>
+              <input type="text" value={topicData.budget} onChange={e => updateManual('budget', e.target.value)} placeholder="z.B. unter 100 Euro" />
             </div>
           </div>
         </div>
@@ -65,7 +80,7 @@ export default function TopicSection({
       )}
 
       <button className="generate-btn" onClick={onStart} disabled={isProcessing}>
-        {isProcessing ? 'Verarbeite...' : 'Verarbeitung starten'}
+        {isProcessing ? 'Verarbeitung läuft...' : 'Verarbeitung starten'}
       </button>
     </div>
   );
