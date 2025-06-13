@@ -1,8 +1,6 @@
-// api/generate-content.js
 const { GoogleAuth } = require('google-auth-library');
 const fetch = require('node-fetch');
 
-// --- Authentifizierungs-Funktion für Imagen (Vertex AI) ---
 async function getGcpAccessToken() {
   const credentialsJsonString = process.env.GOOGLE_CREDENTIALS_JSON;
   if (!credentialsJsonString) throw new Error('GOOGLE_CREDENTIALS_JSON ist nicht konfiguriert.');
@@ -17,7 +15,6 @@ async function getGcpAccessToken() {
   return accessToken.token;
 }
 
-// --- Haupt-Handler ---
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
@@ -64,7 +61,14 @@ export default async function handler(req, res) {
             parameters: { sampleCount: 1 }
         })
     });
-    if (!imageGenResponse.ok) throw new Error('Fehler bei der Bild-Generierung.');
+    
+    // VERBESSERTES FEHLER-LOGGING
+    if (!imageGenResponse.ok) {
+      const errorText = await imageGenResponse.text();
+      console.error("❌ Imagen API Fehler-Details:", errorText);
+      throw new Error('Fehler bei der Bild-Generierung.');
+    }
+
     const imageData = await imageGenResponse.json();
     const base64Image = imageData.predictions[0].bytesBase64Encoded;
     const imageUrl = `data:image/png;base64,${base64Image}`;
