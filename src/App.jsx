@@ -1,74 +1,157 @@
-// ... (alle Imports wie bisher)
+import React, { useState, useEffect, useRef } from 'react';
+import Papa from 'papaparse';
+import Header from './components/Header';
+import TopicSection from './components/TopicSection';
+import ResultsSection from './components/ResultsSection';
+
+// Helferfunktion für den Google Login
+function initializeGoogleSignIn(clientId, scope, callback) {
+  if (window.google) {
+    const client = window.google.accounts.oauth2.initCodeClient({
+      client_id: clientId,
+      scope: scope,
+      ux_mode: 'popup',
+      callback: callback,
+    });
+    return client;
+  }
+  return null;
+}
+
+const extractTitle = (html) => {
+  try {
+    const match = html.match(/<h1[^>]*>(.*?)<\/h1>/i);
+    return match ? match[1].trim() : 'Beitrag ohne Titel';
+  } catch (e) {
+    return 'Beitrag ohne Titel';
+  }
+};
 
 export default function App() {
-  // ... (alle States bis auf diese hier bleiben gleich)
+  const [googleClient, setGoogleClient] = useState(null);
+  const [googleAuthCode, setGoogleAuthCode] = useState(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  
+  const [inputMode, setInputMode] = useState('manual');
+  const [manualData, setManualData] = useState({ anlass: "", alter: "", beruf: "", hobby: "", stil: "", budget: "" });
+  const [dataToProcess, setDataToProcess] = useState([]);
+  
+  const [fileName, setFileName] = useState("");
+  const [results, setResults] = useState([]);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [stagedPost, setStagedPost] = useState(null);
-  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
-  const [generatedImage, setGeneratedImage] = useState(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
 
-  // ... (alle Handler bis auf diesen hier bleiben gleich)
+  const resultsRef = useRef(results);
+  resultsRef.current = results;
+  const dataToProcessRef = useRef(dataToProcess);
+  dataToProcessRef.current = dataToProcess;
 
-  // NEUE FUNKTION für die Bildgenerierung
-  const handleGenerateImage = async () => {
-    // Finde den zuletzt erfolgreich geposteten Blog-Eintrag
-    const lastSuccess = results.find(r => r.status === 'success');
-    if (!lastSuccess) {
-      alert("Es gibt keinen erfolgreichen Blogpost, für den ein Bild generiert werden könnte.");
+  useEffect(() => {
+    const clientId = process.env.REACT_APP_GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      console.error("Google Client ID nicht gefunden. Bitte in .env oder Vercel setzen.");
       return;
     }
-
-    const prompt = lastSuccess.topic; 
-    setIsGeneratingImage(true);
+    const scope = 'https://www.googleapis.com/auth/blogger';
     
-    try {
-      const res = await fetch('/api/generate-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt })
-      });
+    const client = initializeGoogleSignIn(clientId, scope, (response) => {
+      console.log('Authorization Code erhalten:', response.code);
+      setGoogleAuthCode(response.code);
+      setIsLoggedIn(true);
+    });
+    setGoogleClient(client);
+  }, []);
 
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || 'Bildgenerierung fehlgeschlagen.');
-      }
-      const data = await res.json();
-      setGeneratedImage(data.imageUrl);
-
-    } catch (err) {
-      alert(err.message); // Zeige Fehler im UI
-    } finally {
-      setIsGeneratingImage(false);
+  const handleGoogleLogin = () => {
+    if (googleClient) {
+      googleClient.requestCode();
     }
   };
 
-  // ... (restliche Logik wie handleApprove, etc.) ...
+  const handleFileChange = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      setFileName(file.name);
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (result) => setDataToProcess(result.data)
+      });
+    }
+  };
 
-  return (
-    <div className="container">
-      {/* ... (Header und Login-Logik unverändert) ... */}
-      <div className="main-content">
-        {isLoggedIn ? (
-          <>
-            <TopicSection /* ... (unverändert) ... */ />
-            <ResultsSection 
-              results={results}
-              stagedPost={stagedPost}
-              onApprove={handleApproveAndPost}
-              onRegenerate={handleRegenerate}
-              onDiscard={handleDiscard}
-              generatedImage={generatedImage}
-              onGenerateImage={handleGenerateImage}
-              isGeneratingImage={isGeneratingImage}
-            />
-          </>
-        ) : (
-          <div className="login-wrapper">
-            <button onClick={handleGoogleLogin} className="google-login-btn">
-              Mit Google anmelden, um zu starten
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+  const startProcessing = () => {
+    const data = (inputMode === 'manual') ? [manualData] : dataToProcess;
+    if (data.length === 0) return;
+    setDataToProcess(data);
+
+    setResults(data.map(row => ({
+      topic: row.anlass || row.hobby || 'Einzelner Beitrag',
+      status: 'pending',
+      message: 'Wartet...',
+      postUrl: null
+    })));
+    setCurrentIndex(0);
+    setIsProcessing(true);
+  };
+  
+  const processRow = async (index) => {
+    if (index >= dataToProcessRef.current.length) {
+      setIsProcessing(false);
+      return;
+    }
+    
+    const rowData = dataToProcessRef.current[index];
+    let newResults = [...resultsRef.current];
+    newResults[index] = { ...newResults[index], status: 'processing', message: 'Blog wird generiert...' };
+    setResults([...newResults]);
+
+    try {
+      const suggestRes = await fetch('/api/suggest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(rowData)
+      });
+      if (!suggestRes.ok) throw new Error('Blog-Generierung fehlgeschlagen');
+      const suggestData = await suggestRes.json();
+
+      setStagedPost({
+        index: index,
+        title: extractTitle(suggestData.blog),
+        content: suggestData.blog
+      });
+      
+      newResults = [...resultsRef.current];
+      newResults[index] = { ...newResults[index], status: 'review', message: 'Wartet auf Freigabe...' };
+      setResults([...newResults]);
+
+    } catch (err) {
+      newResults = [...resultsRef.current];
+      newResults[index] = { ...newResults[index], status: 'error', message: err.message };
+      setResults([...newResults]);
+      setCurrentIndex(index + 1); 
+    }
+  };
+
+  useEffect(() => {
+    if (isProcessing && !stagedPost) {
+      processRow(currentIndex);
+    }
+  }, [isProcessing, currentIndex, stagedPost]);
+
+
+  const handleApproveAndPost = async () => {
+    if (!stagedPost || !googleAuthCode) {
+      alert("Bitte zuerst bei Google anmelden.");
+      return;
+    }
+
+    const { index, title, content } = stagedPost;
+    let newResults = [...results];
+    newResults[index] = { ...newResults[index], status: 'processing', message: 'Poste auf Blogger...' };
+    setResults([...newResults]);
+    setStagedPost(null);
+
+    try {
+      const blogger
