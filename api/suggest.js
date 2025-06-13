@@ -43,7 +43,7 @@ SCHRITT 1: Erstelle eine Liste von genau 10 einzigartigen Geschenkideen, die zu 
 ]
 
 SCHRITT 2: Schreibe einen hochwertigen, HTML-formatierten Blogartikel (ca. 400-600 Wörter).
-- Integriere die 10 Geschenkideen natürlich in den Text. Markiere dabei den Produktnamen exakt wie in der Liste oben und umschließe ihn mit spitzen Klammern, z.B. <Produktname>.
+- Integriere die 10 Geschenkideen natürlich in den Text und generiere am Schluss nochmal eine Top 10 Liste. Markiere dabei den Produktnamen exakt wie in der Liste oben und umschließe ihn mit spitzen Klammern, z.B. <Produktname>.
 - SEHR WICHTIG: Der Inhalt des "blog"-Feldes darf unter keinen Umständen Markdown-Formatierung wie Backticks (\`), Sternchen für Fett- oder Kursivschrift oder \`\`\` enthalten. Es muss reiner, valider HTML-Code sein (<h1>, <h2>, <p>, <a>, etc.).
 
 Hier sind die Kriterien:
