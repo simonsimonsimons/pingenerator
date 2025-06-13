@@ -1,6 +1,7 @@
+// api/suggest.js (Saubere, korrigierte Version)
 const fetch = require('node-fetch');
 
-// --- Konstanten und Hilfsfunktionen (unverändert) ---
+// --- TEIL 1: Definition der Konstanten ---
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 let GEMINI_MODEL_ID = process.env.GEMINI_MODEL_ID || "gemini-1.5-flash";
 
@@ -18,11 +19,12 @@ function generateAmazonAffiliateLink(produktName) {
     : `https://www.amazon.de/s?k=${encodedQuery}`;
 }
 
+// Dies ist die Funktion, die korrigiert werden muss.
 function escapeRegExp(string) {
-  return string.replace(/[.*+?^<span class="math-inline">\{\}\(\)\|\[\\\]\\\\\]/g, '\\\\</span>&');
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& bedeutet die gesamte gefundene Zeichenkette
 }
 
-// --- Handler-Funktion mit verbessertem Prompt und Parsing ---
+// --- TEIL 2: Die Handler-Funktion ---
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).end("Method Not Allowed");
@@ -30,12 +32,11 @@ module.exports = async function handler(req, res) {
 
   const { alter = "", beruf = "", hobby = "", anlass = "", stil = "", budget = "" } = req.body;
 
-  // VERBESSERTER PROMPT
   const prompt = `
 Du bist ein kreativer Geschenkideen-Experte. Deine Aufgabe ist es, einen hilfreichen Geschenke-Ratgeber zu erstellen.
 
-SCHRITT 1: Erstelle eine Liste von genau 10 einzigartigen Geschenkideen als JSON-ARRAY.
-- Die Geschenkideen sollen gängige und auf Amazon leicht auffindbare Produkte sein.
+SCHRITT 1: Erstelle eine Liste von genau 10 einzigartigen Geschenkideen, die zu den folgenden Kriterien passen. Gib die Liste als JSON-ARRAY zurück.
+**WICHTIG: Die Geschenkideen sollen gängige und auf Amazon leicht auffindbare Produkte sein. Vermeide sehr spezielle oder handgefertigte Einzelstücke.**
 [
   { "produkt": "Allgemeiner, suchbarer Produktname", "beschreibung": "Eine kurze, ansprechende Beschreibung." },
   ...
@@ -43,7 +44,7 @@ SCHRITT 1: Erstelle eine Liste von genau 10 einzigartigen Geschenkideen als JSON
 
 SCHRITT 2: Schreibe einen hochwertigen, HTML-formatierten Blogartikel (ca. 400-600 Wörter).
 - Integriere die 10 Geschenkideen natürlich in den Text. Markiere dabei den Produktnamen exakt wie in der Liste oben und umschließe ihn mit spitzen Klammern, z.B. <Produktname>.
-- SEHR WICHTIG: Der Inhalt des "blog"-Feldes darf unter keinen Umständen Markdown-Formatierung wie Backticks (\`), Sternchen für Fett- oder Kursivschrift oder ``` enthalten. Es muss reiner, valider HTML-Code sein (<h1>, <h2>, <p>, <a>, etc.).
+- SEHR WICHTIG: Der Inhalt des "blog"-Feldes darf unter keinen Umständen Markdown-Formatierung wie Backticks (\`), Sternchen für Fett- oder Kursivschrift oder \`\`\` enthalten. Es muss reiner, valider HTML-Code sein (<h1>, <h2>, <p>, <a>, etc.).
 
 Hier sind die Kriterien:
 - Anlass: ${anlass}
@@ -86,7 +87,6 @@ GIB DEINE ANTWORT AUSSCHLIESSLICH IM FOLGENDEN JSON-FORMAT ZURÜCK. DEINE ANTWOR
 
     rawResponseFromAI = result.candidates[0].content.parts[0].text || "";
     
-    // NEUE, ROBUSTERE BEREINIGUNG: Wir suchen die erste öffnende und letzte schließende Klammer
     const firstBraceIndex = rawResponseFromAI.indexOf('{');
     const lastBraceIndex = rawResponseFromAI.lastIndexOf('}');
     
@@ -95,7 +95,6 @@ GIB DEINE ANTWORT AUSSCHLIESSLICH IM FOLGENDEN JSON-FORMAT ZURÜCK. DEINE ANTWOR
     }
     
     const jsonString = rawResponseFromAI.substring(firstBraceIndex, lastBraceIndex + 1);
-
     const parsed = JSON.parse(jsonString);
     
     const ideas = parsed.ideas.map((idee) => ({
@@ -117,6 +116,6 @@ GIB DEINE ANTWORT AUSSCHLIESSLICH IM FOLGENDEN JSON-FORMAT ZURÜCK. DEINE ANTWOR
   } catch (err) {
     console.error("❌ Fehler bei Verarbeitung:", err.message);
     console.error("Roh-Antwort von der KI, die den Fehler verursachte:", rawResponseFromAI);
-    return res.status(500).json({ error: "Fehler bei der Verarbeitung der AI-Antwort. Die KI hat möglicherweise ungültiges JSON geliefert." });
+    return res.status(500).json({ error: "Fehler bei der Verarbeitung der AI-Antwort." });
   }
 };
