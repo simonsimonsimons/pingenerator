@@ -5,7 +5,7 @@ const fetch = require('node-fetch');
 // --- Authentifizierungs-Funktion für Imagen (Vertex AI) ---
 async function getGcpAccessToken() {
   const credentialsJsonString = process.env.GOOGLE_CREDENTIALS_JSON;
-  if (!credentialsJsonString) throw new Error('GOOGLE_CREDENTIALS_JSON nicht konfiguriert.');
+  if (!credentialsJsonString) throw new Error('GOOGLE_CREDENTIALS_JSON ist nicht konfiguriert.');
   
   const credentials = JSON.parse(credentialsJsonString);
   const auth = new GoogleAuth({
@@ -37,7 +37,8 @@ export default async function handler(req, res) {
   `;
 
   try {
-    // --- SCHRITT 1: Text mit Gemini generieren ---
+    // === SCHRITT 1: Text mit Gemini generieren ===
+    console.log("Starte Text-Generierung...");
     const textGenResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -49,9 +50,11 @@ export default async function handler(req, res) {
     
     const titleMatch = blogHtml.match(/<h1[^>]*>(.*?)<\/h1>/i);
     const title = titleMatch ? titleMatch[1] : 'Spannende Geschenkideen';
-    
-    // --- SCHRITT 2: Bild mit Imagen generieren ---
-    const imagePrompt = `Eine ästhetische Pinterest-Grafik für einen Blogartikel zum Thema "${title}". Heller Hintergrund, moderne Pastellfarben, hochwertig.`;
+    console.log(`Text generiert. Titel: "${title}"`);
+
+    // === SCHRITT 2: Bild mit Imagen generieren ===
+    console.log("Starte Bild-Generierung...");
+    const imagePrompt = `Eine ästhetische Pinterest-Grafik für einen Blogartikel zum Thema "${title}". Heller Hintergrund, moderne Pastellfarben, hochwertig, fotorealistisch.`;
     const accessToken = await getGcpAccessToken();
     const imageGenResponse = await fetch(`https://us-central1-aiplatform.googleapis.com/v1/projects/${projectId}/locations/us-central1/publishers/google/models/imagegeneration@0.0.5:predict`, {
         method: 'POST',
@@ -65,11 +68,12 @@ export default async function handler(req, res) {
     const imageData = await imageGenResponse.json();
     const base64Image = imageData.predictions[0].bytesBase64Encoded;
     const imageUrl = `data:image/png;base64,${base64Image}`;
+    console.log("Bild generiert.");
 
-    // --- SCHRITT 3: Bild in HTML einfügen ---
+    // === SCHRITT 3: Bild in HTML einfügen ===
     const imageTag = `<img src="${imageUrl}" alt="${title}" style="width:100%; height:auto; border-radius:8px; margin-bottom:1.5em;" />`;
-    // Fügt das Bild direkt nach der H1-Überschrift ein
     blogHtml = blogHtml.replace(/(<h1[^>]*>.*?<\/h1>)/i, `$1${imageTag}`);
+    console.log("Bild in HTML eingefügt.");
 
     res.status(200).json({ blogContent: blogHtml });
 
