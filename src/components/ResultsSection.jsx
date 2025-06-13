@@ -2,13 +2,20 @@ import React from 'react';
 
 export default function ResultsSection({ result, stagedPost, onApprove, onRegenerate }) {
 
+  if (!result && !stagedPost) {
+    return null;
+  }
+
   return (
     <div className="results-section">
-      {/* Zeigt den aktuellen Status an, wenn etwas in Bearbeitung ist */}
+      {/* Zeigt einen einfachen Status an, solange kein Post zur Freigabe bereit ist */}
       {result && !stagedPost && (
-        <div className={`status-item ${result.status}`}>
-            <strong>Status:</strong> {result.message}
-            {result.postUrl && <a href={result.postUrl} target="_blank" rel="noopener noreferrer" style={{marginLeft: '1rem'}}>Ansehen</a>}
+        <div className="progress-card">
+          <h3>Status</h3>
+          <div className={`status-item status-${result.status}`}>
+            <span className="status-text">{result.message}</span>
+            {result.postUrl && <a href={result.postUrl} target="_blank" rel="noopener noreferrer" style={{marginLeft: '1rem'}}>Zum Post</a>}
+          </div>
         </div>
       )}
 
