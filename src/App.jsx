@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import Papa from 'papaparse';
+// ... (andere Imports)
 import Header from './components/Header';
 import TopicSection from './components/TopicSection';
 import ResultsSection from './components/ResultsSection';
@@ -14,6 +14,7 @@ function initializeGoogleSignIn(clientId, scope, callback) {
       callback: callback,
     });
     return client;
+<<<<<<< HEAD
   }
   return null;
 }
@@ -24,28 +25,44 @@ const extractTitle = (html) => {
     return match ? match[1].trim() : 'Beitrag ohne Titel';
   } catch (e) {
     return 'Beitrag ohne Titel';
+=======
+>>>>>>> 53428e9470bc9b0d43dd92b5d267656e4814ac79
   }
-};
+  return null;
+}
+
+// ... (extractTitle Funktion unverändert)
 
 export default function App() {
   const [googleClient, setGoogleClient] = useState(null);
+<<<<<<< HEAD
   const [googleAuthCode, setGoogleAuthCode] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   
+=======
+  const [googleAuthCode, setGoogleAuthCode] = useState(null); // Code von Google
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  // ... (alle anderen State-Variablen bleiben gleich)
+>>>>>>> 53428e9470bc9b0d43dd92b5d267656e4814ac79
   const [inputMode, setInputMode] = useState('manual');
   const [manualData, setManualData] = useState({ anlass: "", alter: "", beruf: "", hobby: "", stil: "", budget: "" });
   const [dataToProcess, setDataToProcess] = useState([]);
-  
   const [fileName, setFileName] = useState("");
   const [results, setResults] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [stagedPost, setStagedPost] = useState(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+<<<<<<< HEAD
+=======
+  const [stagedPost, setStagedPost] = useState(null);
+>>>>>>> 53428e9470bc9b0d43dd92b5d267656e4814ac79
 
   const resultsRef = useRef(results);
   resultsRef.current = results;
   const dataToProcessRef = useRef(dataToProcess);
   dataToProcessRef.current = dataToProcess;
+<<<<<<< HEAD
 
   useEffect(() => {
     const clientId = process.env.REACT_APP_GOOGLE_CLIENT_ID;
@@ -98,9 +115,19 @@ export default function App() {
   const processRow = async (index) => {
     if (index >= dataToProcessRef.current.length) {
       setIsProcessing(false);
+=======
+
+  // Initialisiert den Google Sign-In Client
+  useEffect(() => {
+    const clientId = process.env.REACT_APP_GOOGLE_CLIENT_ID; // Diesen Key müssen Sie noch anlegen
+    if (!clientId) {
+      console.error("Google Client ID nicht gefunden. Bitte in .env.development oder Vercel setzen.");
+>>>>>>> 53428e9470bc9b0d43dd92b5d267656e4814ac79
       return;
     }
+    const scope = 'https://www.googleapis.com/auth/blogger';
     
+<<<<<<< HEAD
     const rowData = dataToProcessRef.current[index];
     let newResults = [...resultsRef.current];
     newResults[index] = { ...newResults[index], status: 'processing', message: 'Blog wird generiert...' };
@@ -130,19 +157,31 @@ export default function App() {
       newResults[index] = { ...newResults[index], status: 'error', message: err.message };
       setResults([...newResults]);
       setCurrentIndex(index + 1); 
+=======
+    const client = initializeGoogleSignIn(clientId, scope, (response) => {
+      console.log('Authorization Code erhalten:', response.code);
+      setGoogleAuthCode(response.code);
+      setIsLoggedIn(true);
+    });
+    setGoogleClient(client);
+  }, []);
+
+  const handleGoogleLogin = () => {
+    if (googleClient) {
+      googleClient.requestCode();
+>>>>>>> 53428e9470bc9b0d43dd92b5d267656e4814ac79
     }
   };
-
-  useEffect(() => {
-    if (isProcessing && !stagedPost) {
-      processRow(currentIndex);
-    }
-  }, [isProcessing, currentIndex, stagedPost]);
-
+  
+  // ... (handleFileChange, startProcessing, processRow unverändert) ...
 
   const handleApproveAndPost = async () => {
     if (!stagedPost || !googleAuthCode) {
+<<<<<<< HEAD
       alert("Bitte zuerst bei Google anmelden.");
+=======
+      alert("Bitte zuerst bei Google anmelden, um zu posten.");
+>>>>>>> 53428e9470bc9b0d43dd92b5d267656e4814ac79
       return;
     }
 
@@ -153,6 +192,7 @@ export default function App() {
     setStagedPost(null);
 
     try {
+      // Senden den Auth-Code an den neuen Backend-Endpunkt
       const bloggerRes = await fetch('/api/post-to-blogger', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -176,12 +216,16 @@ export default function App() {
     }
   };
 
+<<<<<<< HEAD
   const handleRegenerate = () => {
     if (!stagedPost) return;
     const { index } = stagedPost;
     setStagedPost(null);
     processRow(index);
   };
+=======
+  // ... (handleRegenerate, handleDiscard unverändert) ...
+>>>>>>> 53428e9470bc9b0d43dd92b5d267656e4814ac79
 
   const handleDiscard = () => {
     if (!stagedPost) return;
@@ -198,7 +242,17 @@ export default function App() {
   return (
     <div className="container">
       <Header />
+      <div className="google-login-container">
+        {isLoggedIn ? (
+          <p className="login-status success">✅ Bei Google angemeldet</p>
+        ) : (
+          <button onClick={handleGoogleLogin} className="google-login-btn">
+            Anmelden mit Google, um zu posten
+          </button>
+        )}
+      </div>
       <div className="main-content">
+<<<<<<< HEAD
         {!isLoggedIn ? (
           <div className="login-wrapper">
             <button onClick={handleGoogleLogin} className="google-login-btn">
@@ -230,3 +284,10 @@ export default function App() {
     </div>
   );
 }
+=======
+        {/* ... (TopicSection und ResultsSection unverändert) ... */}
+      </div>
+    </div>
+  );
+}
+>>>>>>> 53428e9470bc9b0d43dd92b5d267656e4814ac79
