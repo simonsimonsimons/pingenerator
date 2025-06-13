@@ -19,10 +19,10 @@ function generateAmazonAffiliateLink(produktName) {
 }
 
 function escapeRegExp(string) {
-  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return string.replace(/[.*+?^<span class="math-inline">\{\}\(\)\|\[\\\]\\\\\]/g, '\\\\</span>&');
 }
 
-// --- Handler-Funktion mit angepasstem Prompt ---
+// --- Handler-Funktion mit verbessertem Prompt und Parsing ---
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).end("Method Not Allowed");
@@ -30,34 +30,30 @@ module.exports = async function handler(req, res) {
 
   const { alter = "", beruf = "", hobby = "", anlass = "", stil = "", budget = "" } = req.body;
 
-  // ANGEPASSTER PROMPT
+  // VERBESSERTER PROMPT
   const prompt = `
 Du bist ein kreativer Geschenkideen-Experte. Deine Aufgabe ist es, einen hilfreichen Geschenke-Ratgeber zu erstellen.
 
-SCHRITT 1: Erstelle eine Liste von genau 10 einzigartigen Geschenkideen, die zu den folgenden Kriterien passen. Gib die Liste als JSON-ARRAY zurück.
-**WICHTIG: Die Geschenkideen sollen gängige und auf Amazon leicht auffindbare Produkte sein. Vermeide sehr spezielle oder handgefertigte Einzelstücke.**
+SCHRITT 1: Erstelle eine Liste von genau 10 einzigartigen Geschenkideen als JSON-ARRAY.
+- Die Geschenkideen sollen gängige und auf Amazon leicht auffindbare Produkte sein.
 [
-  { "produkt": "Allgemeiner, suchbarer Produktname", "beschreibung": "Eine kurze, ansprechende Beschreibung der Geschenkidee." },
+  { "produkt": "Allgemeiner, suchbarer Produktname", "beschreibung": "Eine kurze, ansprechende Beschreibung." },
   ...
 ]
 
-SCHRITT 2: Schreibe basierend auf den Ideen einen hochwertigen, HTML-formatierten Blogartikel (ca. 400-600 Wörter).
-- Der Artikel soll eine einladende Überschrift (h1) und eine klare Struktur mit Zwischenüberschriften (h2, h3) haben.
-- Integriere die 10 Geschenkideen natürlich in den Text. Markiere dabei den Produktnamen mit spitzen Klammern, z.B. <Produktname>, damit dieser später verlinkt werden kann.
-- Der Schreibstil sollte zum Anlass und zur Zielperson passen.
+SCHRITT 2: Schreibe einen hochwertigen, HTML-formatierten Blogartikel (ca. 400-600 Wörter).
+- Integriere die 10 Geschenkideen natürlich in den Text. Markiere dabei den Produktnamen exakt wie in der Liste oben und umschließe ihn mit spitzen Klammern, z.B. <Produktname>.
+- SEHR WICHTIG: Der Inhalt des "blog"-Feldes darf unter keinen Umständen Markdown-Formatierung wie Backticks (\`), Sternchen für Fett- oder Kursivschrift oder ``` enthalten. Es muss reiner, valider HTML-Code sein (<h1>, <h2>, <p>, <a>, etc.).
 
-Hier sind die Kriterien für die Geschenke:
+Hier sind die Kriterien:
 - Anlass: ${anlass}
 - Zielperson: Alter ca. ${alter}, Beruf/Typ: ${beruf}, Hobbies: ${hobby}
 - Stil: ${stil}
 - Budget: ${budget}
 
-GIB DEINE ANTWORT AUSSCHLIESSLICH IM FOLGENDEN JSON-FORMAT ZURÜCK. BEGINNE DIREKT MIT DER { Und höre mit der } auf. KEIN TEXT DAVOR ODER DANACH.
+GIB DEINE ANTWORT AUSSCHLIESSLICH IM FOLGENDEN JSON-FORMAT ZURÜCK. DEINE ANTWORT MUSS MIT { beginnen und mit } enden. KEIN ANDERER TEXT ODER FORMATIERUNG AUSSERHALB DIESES JSON-OBJEKTS.
 {
-  "ideas": [
-    { "produkt": "...", "beschreibung": "..." },
-    ...
-  ],
+  "ideas": [...],
   "blog": "<h1>Titel</h1><p>...</p>..."
 }`;
 
@@ -89,8 +85,18 @@ GIB DEINE ANTWORT AUSSCHLIESSLICH IM FOLGENDEN JSON-FORMAT ZURÜCK. BEGINNE DIRE
     }
 
     rawResponseFromAI = result.candidates[0].content.parts[0].text || "";
-    const cleanedJsonString = rawResponseFromAI.replace(/^```json\s*/, '').replace(/```$/, '').trim();
-    const parsed = JSON.parse(cleanedJsonString);
+    
+    // NEUE, ROBUSTERE BEREINIGUNG: Wir suchen die erste öffnende und letzte schließende Klammer
+    const firstBraceIndex = rawResponseFromAI.indexOf('{');
+    const lastBraceIndex = rawResponseFromAI.lastIndexOf('}');
+    
+    if (firstBraceIndex === -1 || lastBraceIndex === -1) {
+        throw new Error("Antwort der KI enthielt kein valides JSON-Objekt.");
+    }
+    
+    const jsonString = rawResponseFromAI.substring(firstBraceIndex, lastBraceIndex + 1);
+
+    const parsed = JSON.parse(jsonString);
     
     const ideas = parsed.ideas.map((idee) => ({
       ...idee,
@@ -111,6 +117,6 @@ GIB DEINE ANTWORT AUSSCHLIESSLICH IM FOLGENDEN JSON-FORMAT ZURÜCK. BEGINNE DIRE
   } catch (err) {
     console.error("❌ Fehler bei Verarbeitung:", err.message);
     console.error("Roh-Antwort von der KI, die den Fehler verursachte:", rawResponseFromAI);
-    return res.status(500).json({ error: "Fehler bei der Verarbeitung der AI-Antwort." });
+    return res.status(500).json({ error: "Fehler bei der Verarbeitung der AI-Antwort. Die KI hat möglicherweise ungültiges JSON geliefert." });
   }
 };
