@@ -6,16 +6,17 @@ import ResultsSection from './components/ResultsSection';
 
 // Helferfunktion für den Google Login
 function initializeGoogleSignIn(clientId, scope, callback) {
-  if (window.google) {
-    const client = window.google.accounts.oauth2.initCodeClient({
-      client_id: clientId,
-      scope: scope,
-      ux_mode: 'popup',
-      callback: callback,
-    });
-    return client;
+  if (!window.google) {
+    return null;
   }
-  return null;
+  
+  const client = window.google.accounts.oauth2.initCodeClient({
+    client_id: clientId,
+    scope: scope,
+    ux_mode: 'popup',
+    callback: callback,
+  });
+  return client;
 }
 
 const extractTitle = (html) => {
@@ -56,7 +57,6 @@ export default function App() {
     const scope = 'https://www.googleapis.com/auth/blogger';
     
     const client = initializeGoogleSignIn(clientId, scope, (response) => {
-      console.log('Authorization Code erhalten:', response.code);
       setGoogleAuthCode(response.code);
       setIsLoggedIn(true);
     });
@@ -154,4 +154,80 @@ export default function App() {
     setStagedPost(null);
 
     try {
-      const blogger
+      const bloggerRes = await fetch('/api/post-to-blogger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, content, authCode: googleAuthCode })
+      });
+      if (!bloggerRes.ok) {
+        const errorData = await bloggerRes.json();
+        throw new Error(errorData.error || 'Blogger-Upload fehlgeschlagen');
+      }
+      const bloggerData = await bloggerRes.json();
+      
+      newResults = [...resultsRef.current];
+      newResults[index] = { ...newResults[index], status: 'success', message: 'Erfolgreich gepostet!', postUrl: bloggerData.postUrl };
+      setResults([...newResults]);
+    } catch (err) {
+      newResults = [...resultsRef.current];
+      newResults[index] = { ...newResults[index], status: 'error', message: err.message };
+      setResults([...newResults]);
+    } finally {
+      setCurrentIndex(currentIndex + 1);
+    }
+  };
+
+  const handleRegenerate = () => {
+    if (!stagedPost) return;
+    const { index } = stagedPost;
+    setStagedPost(null);
+    processRow(index);
+  };
+
+  const handleDiscard = () => {
+    if (!stagedPost) return;
+    const { index } = stagedPost;
+    
+    let newResults = [...results];
+    newResults[index] = { ...newResults[index], status: 'error', message: 'Manuell verworfen' };
+    setResults(newResults);
+
+    setStagedPost(null);
+    setCurrentIndex(index + 1);
+  }
+
+  return (
+    <div className="container">
+      <Header />
+      <div className="main-content">
+        {!isLoggedIn ? (
+          <div className="login-wrapper">
+            <button onClick={handleGoogleLogin} className="google-login-btn">
+              Mit Google anmelden, um zu starten
+            </button>
+          </div>
+        ) : (
+          <>
+            <TopicSection 
+              inputMode={inputMode}
+              setInputMode={setInputMode}
+              topicData={manualData}
+              setTopicData={setManualData}
+              onFileChange={handleFileChange}
+              fileName={fileName}
+              onStart={startProcessing}
+              isProcessing={isProcessing}
+            />
+            <ResultsSection 
+              results={results}
+              stagedPost={stagedPost}
+              onApprove={handleApproveAndPost}
+              onRegenerate={handleRegenerate}
+              onDiscard={handleDiscard}
+            />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
