@@ -1,6 +1,7 @@
 const { GoogleAuth } = require('google-auth-library');
 const fetch = require('node-fetch');
 
+// --- Authentifizierungs-Funktion für Imagen (Vertex AI) ---
 async function getGcpAccessToken() {
   const credentialsJsonString = process.env.GOOGLE_CREDENTIALS_JSON;
   if (!credentialsJsonString) throw new Error('GOOGLE_CREDENTIALS_JSON ist nicht konfiguriert.');
@@ -15,6 +16,7 @@ async function getGcpAccessToken() {
   return accessToken.token;
 }
 
+// --- Haupt-Handler ---
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
@@ -53,7 +55,11 @@ export default async function handler(req, res) {
     console.log("Starte Bild-Generierung...");
     const imagePrompt = `Eine ästhetische Pinterest-Grafik für einen Blogartikel zum Thema "${title}". Heller Hintergrund, moderne Pastellfarben, hochwertig, fotorealistisch.`;
     const accessToken = await getGcpAccessToken();
-    const imageGenResponse = await fetch(`https://us-central1-aiplatform.googleapis.com/v1/projects/${projectId}/locations/us-central1/publishers/google/models/imagegeneration@0.0.5:predict`, {
+
+    // KORRIGIERTER ENDPUNKT (ohne @0.0.5)
+    const API_ENDPOINT = `https://us-central1-aiplatform.googleapis.com/v1/projects/${projectId}/locations/us-central1/publishers/google/models/imagegeneration:predict`;
+    
+    const imageGenResponse = await fetch(API_ENDPOINT, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -62,7 +68,6 @@ export default async function handler(req, res) {
         })
     });
     
-    // VERBESSERTES FEHLER-LOGGING
     if (!imageGenResponse.ok) {
       const errorText = await imageGenResponse.text();
       console.error("❌ Imagen API Fehler-Details:", errorText);
@@ -70,7 +75,8 @@ export default async function handler(req, res) {
     }
 
     const imageData = await imageGenResponse.json();
-    const base64Image = imageData.predictions[0].bytesBase64Encoded;
+    // Der Pfad zur URL kann je nach API-Antwort variieren, dieser ist für Imagen korrekt
+    const base64Image = imageData.predictions[0].bytesBase64Encoded; 
     const imageUrl = `data:image/png;base64,${base64Image}`;
     console.log("Bild generiert.");
 
