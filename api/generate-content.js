@@ -1,3 +1,4 @@
+// api/generate-content.js (Final, Optimized Version)
 const { GoogleAuth } = require('google-auth-library');
 const fetch = require('node-fetch');
 
@@ -9,7 +10,7 @@ async function getGcpAccessToken() {
   const credentials = JSON.parse(credentialsJsonString);
   const auth = new GoogleAuth({
     credentials,
-    scopes: 'https://www.googleapis.com/auth/cloud-platform',
+    scopes: '[https://www.googleapis.com/auth/cloud-platform](https://www.googleapis.com/auth/cloud-platform)',
   });
   const client = await auth.getClient();
   const accessToken = await client.getAccessToken();
@@ -25,7 +26,7 @@ export default async function handler(req, res) {
   const geminiKey = process.env.GOOGLE_API_KEY;
   const projectId = process.env.GCP_PROJECT_ID;
   const geminiModel = process.env.GEMINI_MODEL_ID || "gemini-1.5-flash";
-  const { alter, beruf, hobby, anlass, stil, budget } = req.body;
+  const { anlass, alter, beruf, hobby, stil, budget } = req.body;
 
   const textPrompt = `
     Erstelle einen hochwertigen, HTML-formatierten Blogartikel (ca. 400-600 Wörter) über Geschenkideen.
@@ -47,16 +48,19 @@ export default async function handler(req, res) {
     const textData = await textGenResponse.json();
     let blogHtml = textData.candidates[0].content.parts[0].text;
     
+    // NEU: Bereinigt die Antwort von ```html am Anfang und ``` am Ende
+    blogHtml = blogHtml.replace(/^```html\s*/, '').replace(/```$/, '').trim();
+    
     const titleMatch = blogHtml.match(/<h1[^>]*>(.*?)<\/h1>/i);
     const title = titleMatch ? titleMatch[1] : 'Spannende Geschenkideen';
     console.log(`Text generiert. Titel: "${title}"`);
 
     // === SCHRITT 2: Bild mit Imagen generieren ===
     console.log("Starte Bild-Generierung...");
-    const imagePrompt = `Eine ästhetische Pinterest-Grafik für einen Blogartikel zum Thema "${title}". Heller Hintergrund, moderne Pastellfarben, hochwertig, fotorealistisch.`;
+    // NEUER, VERBESSERTER PROMPT FÜR PINTEREST-THUMBNAILS
+    const imagePrompt = `Ein ansprechendes Pinterest-Thumbnail für einen Blogartikel. Das Bild soll prominent den Text "Top 10 Geschenke für ${anlass || 'jeden Anlass'}" enthalten. Der Stil soll modern und ästhetisch sein, mit sanften Pastellfarben, die zum Thema "${title}" passen. Hochwertig, professionell und für hohe Klickraten optimiert.`;
+    
     const accessToken = await getGcpAccessToken();
-
-    // KORRIGIERTER ENDPUNKT (ohne @0.0.5)
     const API_ENDPOINT = `https://us-central1-aiplatform.googleapis.com/v1/projects/${projectId}/locations/us-central1/publishers/google/models/imagegeneration:predict`;
     
     const imageGenResponse = await fetch(API_ENDPOINT, {
@@ -75,7 +79,6 @@ export default async function handler(req, res) {
     }
 
     const imageData = await imageGenResponse.json();
-    // Der Pfad zur URL kann je nach API-Antwort variieren, dieser ist für Imagen korrekt
     const base64Image = imageData.predictions[0].bytesBase64Encoded; 
     const imageUrl = `data:image/png;base64,${base64Image}`;
     console.log("Bild generiert.");
