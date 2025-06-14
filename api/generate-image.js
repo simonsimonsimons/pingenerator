@@ -32,7 +32,7 @@ export default async function handler(req, res) {
     Ein klickstarkes Pinterest-Thumbnail im Stil eines professionellen Grafikdesigns.
     Fokus: Perfekt lesbarer Text.
     Text-Inhalt: "${textOverlay}"
-    Text-Stil: Große, fette, weiße Sans-Serif-Schrift. Hoher Kontrast zum Hintergrund. Die Typografie muss sauber, scharf und klar lesbar sein.
+    Text-Stil: Große, fette, weiße Sans-Serif-Schrift. Hoher Kontrast zum Hintergrund. Die Typografie muss sauber, scharf und absolut klar in deutsch lesbar sein.
     Hintergrund: Ein einfacher, moderner Hintergrund mit sanften Pastellfarben, der zum Thema "${title}" passt und nicht vom Text ablenkt.
   `;
 
