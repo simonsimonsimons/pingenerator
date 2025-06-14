@@ -1,4 +1,3 @@
-// src/components/ResultsSection.jsx
 import React from 'react';
 
 export default function ResultsSection({ 
@@ -35,12 +34,12 @@ export default function ResultsSection({
           <div className="review-actions">
             {!generatedImage ? (
               <button onClick={onGenerateImage} disabled={isProcessing} className="image-gen-btn">
-                2. Passendes Bild generieren
+                Schritt 2: Passendes Bild generieren
               </button>
             ) : (
               !postUrl && (
                 <button onClick={onPostToBlogger} disabled={isProcessing} className="approve-btn">
-                  3. Auf Blogger posten
+                  Schritt 3: Auf Blogger posten
                 </button>
               )
             )}
