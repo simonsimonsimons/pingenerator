@@ -100,7 +100,7 @@ export default function App() {
 
     const title = extractTitle(generatedText);
     const textForImage = `Top 10 Geschenke für ${manualData.anlass}`;
-    const prompt = `Ein ansprechendes Pinterest-Thumbnail zum Thema "<span class="math-inline">\{title\}"\. Das Bild soll den Text "</span>{textForImage}" enthalten.`;
+    const prompt = `Ein ansprechendes Pinterest-Thumbnail zum Thema "${title}". Das Bild soll den Text "${textForImage}" enthalten.`;
 
     try {
       const res = await fetch('/api/generate-image', {
@@ -113,4 +113,71 @@ export default function App() {
       setGeneratedImage(data.imageUrl);
       setStatusMessage("Bild erfolgreich generiert. Bereit zum Posten.");
     } catch (err) {
-      setStatusMessage(`Fehler
+      setStatusMessage(`Fehler: ${err.message}`);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handlePostToBlogger = async () => {
+    if (!generatedText || !generatedImage || !googleAuthCode) {
+        alert("Text, Bild und Google-Anmeldung werden zum Posten benötigt.");
+        return;
+    };
+    setIsProcessing(true);
+    setStatusMessage("Schritt 3: Post wird auf Blogger veröffentlicht...");
+
+    const title = extractTitle(generatedText);
+    const imageTag = `<img src="${generatedImage}" alt="${title}" style="width:100%;" />`;
+    const finalContent = generatedText.replace(/(<h1[^>]*>.*?<\/h1>)/i, `$1${imageTag}`);
+    
+    try {
+      const res = await fetch('/api/post-to-blogger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, content: finalContent, authCode: googleAuthCode })
+      });
+      if (!res.ok) throw new Error('Blogger-Upload fehlgeschlagen');
+      const data = await res.json();
+      setPostUrl(data.postUrl);
+      setStatusMessage(`Erfolgreich gepostet!`);
+    } catch (err) {
+      setStatusMessage(`Fehler: ${err.message}`);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <div className="container">
+      <Header />
+      <div className="main-content">
+        {!isLoggedIn ? (
+          <div className="login-wrapper">
+            <button onClick={handleGoogleLogin} className="google-login-btn" disabled={!googleClient}>
+              {googleClient ? "Mit Google anmelden, um zu starten" : "Lade Login..."}
+            </button>
+          </div>
+        ) : (
+          <>
+            <TopicSection 
+              topicData={manualData} 
+              setTopicData={setManualData} 
+              onGenerateText={handleGenerateText} 
+              isProcessing={isProcessing}
+            />
+            <ResultsSection
+              statusMessage={statusMessage}
+              generatedText={generatedText}
+              generatedImage={generatedImage}
+              onGenerateImage={handleGenerateImage}
+              onPostToBlogger={handlePostToBlogger}
+              isProcessing={isProcessing}
+              postUrl={postUrl}
+            />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
