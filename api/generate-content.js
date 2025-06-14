@@ -55,9 +55,9 @@ export default async function handler(req, res) {
     const imagePrompt = `
       Ein emotionales, hochwertiges Lifestyle-Foto im Stil eines Blog-Thumbnails für Pinterest.
       Hauptmotiv: Eine authentische, fröhliche Szene, die zum Thema "${title}" passt.
-      Text-Overlay: Das Bild soll prominent den Text "${dynamicTextOverlay}" in einer modernen, fetten, weißen Sans-Serif-Schrift enthalten.
+      Text-Overlay: Das Bild soll prominent den Text "${dynamicTextOverlay}" in einer modernen, klar lesbaren, weißen Sans-Serif-Schrift enthalten.
       Bildstil: Warme Farbpalette, weiches Licht, leicht unscharfer Hintergrund (Bokeh-Effekt), fotorealistisch und professionell.
-      Stimmung: Herzlich, einladend und authentisch. Das Bild soll den Betrachter neugierig machen und zum Klicken anregen.
+      Stimmung: Herzlich, einladend und authentisch. Das Bild soll den Betrachter neugierig machen und zum Klicken anregen. Wichtig ist das der Text klar zu lesen ist.
     `;
     
     const accessToken = await getGcpAccessToken();
