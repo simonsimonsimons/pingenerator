@@ -1,19 +1,16 @@
+// api/generate-image.js
 const { GoogleAuth } = require('google-auth-library');
 const fetch = require('node-fetch');
 
 async function getGcpAccessToken() {
   const credentialsJsonString = process.env.GOOGLE_CREDENTIALS_JSON;
-  if (!credentialsJsonString) {
-    throw new Error('GOOGLE_CREDENTIALS_JSON ist nicht in den Umgebungsvariablen gesetzt.');
-  }
-
+  if (!credentialsJsonString) throw new Error('GOOGLE_CREDENTIALS_JSON ist nicht konfiguriert.');
+  
   const credentials = JSON.parse(credentialsJsonString);
-
   const auth = new GoogleAuth({
     credentials,
     scopes: 'https://www.googleapis.com/auth/cloud-platform',
   });
-
   const client = await auth.getClient();
   const accessToken = await client.getAccessToken();
   return accessToken.token;
@@ -31,7 +28,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Fehlende Parameter: prompt oder GCP_PROJECT_ID' });
   }
 
-  const API_ENDPOINT = `https://us-central1-aiplatform.googleapis.com/v1/projects/${projectId}/locations/us-central1/publishers/google/models/imagegeneration@0.0.5:predict`;
+  const API_ENDPOINT = `https://us-central1-aiplatform.googleapis.com/v1/projects/${projectId}/locations/us-central1/publishers/google/models/imagegeneration:predict`;
 
   try {
     const accessToken = await getGcpAccessToken();
@@ -43,16 +40,15 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        instances: [
-          { prompt: `a pinterest-style aesthetic photo of: ${prompt}. Clean bright background, professional, high quality, photorealistic.` }
-        ],
+        instances: [{ prompt: `Eine ästhetische Pinterest-Grafik für einen Blogartikel zum Thema "${prompt}". Heller Hintergrund, moderne Pastellfarben, hochwertig, fotorealistisch.` }],
         parameters: { sampleCount: 1 }
       })
     });
 
     if (!apiRes.ok) {
       const errorText = await apiRes.text();
-      throw new Error(`Imagen API Fehler: ${errorText}`);
+      console.error("Imagen API Fehler:", errorText);
+      throw new Error(`Imagen API Fehler`);
     }
 
     const data = await apiRes.json();
