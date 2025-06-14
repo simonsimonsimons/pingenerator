@@ -7,22 +7,28 @@ export default async function handler(req, res) {
 
   // Empfängt jetzt den authCode vom Frontend
   const { title, content, authCode } = req.body;
-  const blogId = process.env.BLOGGER_BLOG_ID;
   
+  const blogId = process.env.BLOGGER_BLOG_ID;
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
   if (!authCode) {
     return res.status(400).json({ error: 'Authorization Code fehlt.' });
   }
+  if (!clientId || !clientSecret || !blogId) {
+    return res.status(500).json({ error: 'Server-Konfiguration unvollständig.' });
+  }
 
   try {
-    // Schritt 1: Tausche den Authorization Code gegen einen Access Token
+    // Schritt 1: Tausche den einmaligen Authorization Code gegen einen Access Token
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         code: authCode,
-        client_id: process.env.GOOGLE_CLIENT_ID,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET,
-        redirect_uri: 'postmessage', // Spezieller Wert für diesen Flow
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: 'postmessage', // Spezieller Wert für den JavaScript-Flow
         grant_type: 'authorization_code'
       }),
     });
@@ -30,13 +36,13 @@ export default async function handler(req, res) {
     if (!tokenResponse.ok) {
       const errorData = await tokenResponse.json();
       console.error("Fehler beim Tausch des Auth-Codes:", errorData);
-      throw new Error('Ungültiger Authorization Code.');
+      throw new Error('Ungültiger Authorization Code. Bitte neu anmelden.');
     }
 
     const tokenData = await tokenResponse.json();
     const accessToken = tokenData.access_token;
 
-    // Schritt 2: Poste den Artikel mit dem erhaltenen Access Token
+    // Schritt 2: Poste den Artikel mit dem frisch erhaltenen Access Token
     const postResponse = await fetch(`https://www.googleapis.com/blogger/v3/blogs/${blogId}/posts/`, {
       method: 'POST',
       headers: {
