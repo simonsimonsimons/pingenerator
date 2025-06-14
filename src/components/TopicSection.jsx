@@ -1,4 +1,3 @@
-// src/components/TopicSection.jsx
 import React from 'react';
 
 export default function TopicSection({ topicData, setTopicData, onGenerateText, isProcessing }) {
@@ -6,7 +5,7 @@ export default function TopicSection({ topicData, setTopicData, onGenerateText, 
 
   return (
     <div className="topic-section">
-      <h2>1. Thema definieren</h2>
+      <h2>Thema definieren</h2>
       <div className="form-grid">
         <div className="form-group">
           <label>Anlass:</label>
@@ -34,7 +33,7 @@ export default function TopicSection({ topicData, setTopicData, onGenerateText, 
         </div>
       </div>
       <button className="generate-btn" onClick={onGenerateText} disabled={isProcessing}>
-        {isProcessing ? 'Generiere...' : 'Text generieren'}
+        {isProcessing ? 'Generiere...' : 'Schritt 1: Text generieren'}
       </button>
     </div>
   );
