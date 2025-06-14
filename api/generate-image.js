@@ -1,4 +1,4 @@
-// api/generate-image.js
+// api/generate-image.js (Robuste Version mit besserem Logging)
 const { GoogleAuth } = require('google-auth-library');
 const fetch = require('node-fetch');
 
@@ -40,19 +40,36 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        instances: [{ prompt: `Ein ansprechendes Pinterest-Thumbnail für einen Blogartikel. Das Bild soll prominent den Text "${prompt}" enthalten. Moderner, ästhetischer Stil mit sanften Pastellfarben.` }],
+        instances: [{ prompt }],
         parameters: { sampleCount: 1 }
       })
     });
 
     if (!apiRes.ok) {
       const errorText = await apiRes.text();
-      console.error("Imagen API Fehler:", errorText);
+      console.error("❌ Imagen API hat einen Fehler zurückgegeben:", errorText);
       throw new Error(`Imagen API Fehler`);
     }
 
     const data = await apiRes.json();
+    
+    // NEU: Detailliertes Logging und robuste Überprüfung
+    console.log("Vollständige Antwort von der Imagen API:", JSON.stringify(data, null, 2));
+
+    if (!data.predictions || !Array.isArray(data.predictions) || data.predictions.length === 0) {
+      console.error("❌ Imagen API hat keine Bilder (predictions) zurückgegeben.");
+      // Prüfen, ob ein Sicherheitsgrund angegeben wurde
+      if (data.error) {
+        throw new Error(`Die Bild-API hat einen Fehler gemeldet: ${data.error.message}`);
+      }
+      throw new Error("Die Bild-API hat kein gültiges Bild zurückgegeben.");
+    }
+
     const base64Image = data.predictions[0].bytesBase64Encoded;
+    if (!base64Image) {
+        throw new Error("Das zurückgegebene Bild-Objekt enthält keine Base64-Daten.");
+    }
+    
     const imageUrl = `data:image/png;base64,${base64Image}`;
     
     res.status(200).json({ imageUrl });
