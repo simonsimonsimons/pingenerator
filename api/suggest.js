@@ -10,9 +10,11 @@ export default async function handler(req, res) {
   const geminiModel = process.env.GEMINI_MODEL_ID || "gemini-1.5-flash";
   const { anlass, alter, beruf, hobby, stil, budget } = req.body;
 
+  // ANGEPASSTER PROMPT FÜR MEHR TEXT
   const textPrompt = `
-    Erstelle einen hochwertigen, HTML-formatierten Blogartikel (ca. 400-600 Wörter) über Geschenkideen.
-    - Der Artikel soll eine einladende H1-Überschrift haben.
+    Erstelle einen hochwertigen, HTML-formatierten Blogartikel über Geschenkideen.
+    - Der Artikel MUSS ausführlich sein und mindestens 500 Wörter umfassen.
+    - Er soll eine einladende H1-Überschrift haben.
     - Integriere 10 gängige, auf Amazon auffindbare Geschenkideen als HTML-Liste (ul/li).
     - Gib NUR den HTML-Code zurück, ohne Markdown oder andere Formatierungen.
     Kriterien: Anlass: ${anlass}, Zielperson: ca. ${alter} Jahre, ${beruf}, Hobbies: ${hobby}, Stil: ${stil}, Budget: ${budget}.
