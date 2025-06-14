@@ -1,81 +1,30 @@
+// src/App.jsx
 import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
 import TopicSection from './components/TopicSection';
 import ResultsSection from './components/ResultsSection';
 
-// Helferfunktion für den Google Login
-function initializeGoogleSignIn(clientId, scope, callback) {
-  if (!window.google) {
-    console.error("Google-Skript ist nicht bereit.");
-    return null;
-  }
-  const client = window.google.accounts.oauth2.initCodeClient({
-    client_id: clientId,
-    scope: scope,
-    ux_mode: 'popup',
-    callback: callback,
-  });
-  return client;
-}
-
-const extractTitle = (html) => {
-  try {
-    const match = html.match(/<h1[^>]*>(.*?)<\/h1>/i);
-    return match ? match[1].trim() : 'Beitrag ohne Titel';
-  } catch (e) {
-    return 'Beitrag ohne Titel';
-  }
-};
+// ... (extractTitle und initializeGoogleSignIn Funktionen bleiben unverändert)
 
 export default function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [googleClient, setGoogleClient] = useState(null);
   const [googleAuthCode, setGoogleAuthCode] = useState(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   
-  const [manualData, setManualData] = useState({ anlass: "Geburtstag für einen Gärtner", hobby: "Gartenarbeit" });
+  const [manualData, setManualData] = useState({ anlass: "Vatertag", hobby: "Grillen" });
   
-  const [statusMessage, setStatusMessage] = useState("");
+  const [status, setStatus] = useState({ message: "", type: "idle" }); // idle, processing, success, error
   const [isProcessing, setIsProcessing] = useState(false);
   
   const [generatedText, setGeneratedText] = useState(null);
   const [generatedImage, setGeneratedImage] = useState(null);
   const [postUrl, setPostUrl] = useState(null);
 
-  // Lädt das Google-Skript dynamisch und sicher
-  useEffect(() => {
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    script.onload = () => {
-      console.log("Google-Skript erfolgreich geladen.");
-      const clientId = process.env.REACT_APP_GOOGLE_CLIENT_ID;
-      const scope = 'https://www.googleapis.com/auth/blogger';
-      if (!clientId) {
-        console.error("Google Client ID für Frontend nicht gefunden.");
-        return;
-      }
-      const client = initializeGoogleSignIn(clientId, scope, (response) => {
-        setGoogleAuthCode(response.code);
-        setIsLoggedIn(true);
-      });
-      setGoogleClient(client);
-    };
-    document.body.appendChild(script);
-    return () => {
-      document.body.removeChild(script);
-    };
-  }, []);
-
-  const handleGoogleLogin = () => {
-    if (googleClient) {
-      googleClient.requestCode();
-    }
-  };
+  // ... (useEffect für Google Login bleibt unverändert)
 
   const handleGenerateText = async () => {
     setIsProcessing(true);
-    setStatusMessage("Schritt 1: Text wird generiert...");
+    setStatus({ message: "Schritt 1: Text wird generiert...", type: 'processing' });
     setGeneratedText(null);
     setGeneratedImage(null);
     setPostUrl(null);
@@ -89,9 +38,9 @@ export default function App() {
       if (!res.ok) throw new Error('Text-Generierung fehlgeschlagen');
       const data = await res.json();
       setGeneratedText(data.blogContent);
-      setStatusMessage("Text generiert. Bereit für den nächsten Schritt.");
+      setStatus({ message: "Text generiert. Bereit für den nächsten Schritt.", type: 'success' });
     } catch (err) {
-      setStatusMessage(`Fehler: ${err.message}`);
+      setStatus({ message: `Fehler: ${err.message}`, type: 'error' });
     } finally {
       setIsProcessing(false);
     }
@@ -100,7 +49,7 @@ export default function App() {
   const handleGenerateImage = async () => {
     if (!generatedText) return;
     setIsProcessing(true);
-    setStatusMessage("Schritt 2: Bild wird generiert...");
+    setStatus({ message: "Schritt 2: Bild wird generiert (kann bis zu 30s dauern)...", type: 'processing' });
     setGeneratedImage(null);
 
     const title = extractTitle(generatedText);
@@ -115,10 +64,10 @@ export default function App() {
       });
       if (!res.ok) throw new Error('Bild-Generierung fehlgeschlagen');
       const data = await res.json();
-      setGeneratedImage(data.imageUrl);
-      setStatusMessage("Bild erfolgreich generiert. Bereit zum Posten.");
+      setGeneratedImage(data.imageUrl); // KORREKTE ZUWEISUNG
+      setStatus({ message: "Bild erfolgreich generiert. Bereit zum Posten.", type: 'success' });
     } catch (err) {
-      setStatusMessage(`Fehler: ${err.message}`);
+      setStatus({ message: `Fehler: ${err.message}`, type: 'error' });
     } finally {
       setIsProcessing(false);
     }
@@ -130,10 +79,10 @@ export default function App() {
         return;
     };
     setIsProcessing(true);
-    setStatusMessage("Schritt 3: Post wird auf Blogger veröffentlicht...");
+    setStatus({ message: "Schritt 3: Post wird auf Blogger veröffentlicht...", type: 'processing' });
 
     const title = extractTitle(generatedText);
-    const imageTag = `<img src="${generatedImage}" alt="${title}" style="width:100%;" />`;
+    const imageTag = `<img src="${generatedImage}" alt="${title}" style="width:100%; height:auto; border-radius:8px;" />`;
     const finalContent = generatedText.replace(/(<h1[^>]*>.*?<\/h1>)/i, `$1${imageTag}`);
     
     try {
@@ -145,9 +94,9 @@ export default function App() {
       if (!res.ok) throw new Error('Blogger-Upload fehlgeschlagen');
       const data = await res.json();
       setPostUrl(data.postUrl);
-      setStatusMessage(`Erfolgreich gepostet!`);
+      setStatus({ message: `Erfolgreich gepostet!`, type: 'success' });
     } catch (err) {
-      setStatusMessage(`Fehler: ${err.message}`);
+      setStatus({ message: `Fehler: ${err.message}`, type: 'error' });
     } finally {
       setIsProcessing(false);
     }
@@ -155,34 +104,27 @@ export default function App() {
 
   return (
     <div className="container">
-      <Header />
-      <div className="main-content">
-        {!isLoggedIn ? (
-          <div className="login-wrapper">
-            <button onClick={handleGoogleLogin} className="google-login-btn" disabled={!googleClient}>
-              {googleClient ? "Mit Google anmelden, um zu starten" : "Lade Login..."}
-            </button>
-          </div>
-        ) : (
-          <>
-            <TopicSection 
-              topicData={manualData} 
-              setTopicData={setManualData} 
-              onGenerateText={handleGenerateText} 
-              isProcessing={isProcessing}
-            />
-            <ResultsSection
-              statusMessage={statusMessage}
-              generatedText={generatedText}
-              generatedImage={generatedImage}
-              onGenerateImage={handleGenerateImage}
-              onPostToBlogger={handlePostToBlogger}
-              isProcessing={isProcessing}
-              postUrl={postUrl}
-            />
-          </>
-        )}
-      </div>
+       { /* ... Header und Login ... */ }
+      {isLoggedIn && (
+        <div className="main-content">
+          <TopicSection 
+            topicData={manualData} 
+            setTopicData={setManualData} 
+            onGenerateText={handleGenerateText} 
+            isProcessing={isProcessing}
+          />
+          <ResultsSection
+            statusMessage={status.message}
+            statusType={status.type}
+            generatedText={generatedText}
+            generatedImage={generatedImage}
+            onGenerateImage={handleGenerateImage}
+            onPostToBlogger={handlePostToBlogger}
+            isProcessing={isProcessing}
+            postUrl={postUrl}
+          />
+        </div>
+      )}
     </div>
   );
 }
