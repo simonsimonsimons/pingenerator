@@ -1,32 +1,49 @@
+// src/components/ResultsSection.jsx
 import React from 'react';
 
-export default function ResultsSection({ result, stagedPost, onApprove, onRegenerate }) {
-
-  if (!result && !stagedPost) {
-    return null;
-  }
+export default function ResultsSection({ 
+  statusMessage, 
+  generatedText, 
+  generatedImage, 
+  onGenerateImage, 
+  onPostToBlogger,
+  isProcessing,
+  postUrl
+}) {
+  const showSection = statusMessage || generatedText;
+  if (!showSection) return null;
 
   return (
     <div className="results-section">
-      {/* Zeigt einen einfachen Status an, solange kein Post zur Freigabe bereit ist */}
-      {result && !stagedPost && (
-        <div className="progress-card">
-          <h3>Status</h3>
-          <div className={`status-item status-${result.status}`}>
-            <span className="status-text">{result.message}</span>
-            {result.postUrl && <a href={result.postUrl} target="_blank" rel="noopener noreferrer" style={{marginLeft: '1rem'}}>Zum Post</a>}
-          </div>
-        </div>
-      )}
+      <div className="progress-card">
+        <h3>Fortschritt</h3>
+        <p className="status-message">{statusMessage}</p>
+        {postUrl && (
+          <a href={postUrl} target="_blank" rel="noopener noreferrer" className="link-to-post">
+            Zum veröffentlichten Post
+          </a>
+        )}
+      </div>
 
-      {/* Zeigt die Vorschau an, wenn ein Artikel auf Freigabe wartet */}
-      {stagedPost && (
+      {generatedText && (
         <div className="review-card">
-          <h3>Vorschau & Freigabe</h3>
-          <div className="blog-preview" dangerouslySetInnerHTML={{ __html: stagedPost.content }} />
+          <h4>Vorschau</h4>
+          <div className="preview-container">
+            {generatedImage && <img src={generatedImage} alt="Generiertes Bild" className="image-preview" />}
+            <div className="blog-preview" dangerouslySetInnerHTML={{ __html: generatedText }} />
+          </div>
           <div className="review-actions">
-            <button className="approve-btn" onClick={onApprove}>✅ Freigeben & auf Blogger posten</button>
-            <button className="regenerate-btn" onClick={onRegenerate}>🔄 Erneut generieren</button>
+            {!generatedImage ? (
+              <button onClick={onGenerateImage} disabled={isProcessing} className="image-gen-btn">
+                2. Passendes Bild generieren
+              </button>
+            ) : (
+              !postUrl && (
+                <button onClick={onPostToBlogger} disabled={isProcessing} className="approve-btn">
+                  3. Auf Blogger posten
+                </button>
+              )
+            )}
           </div>
         </div>
       )}
