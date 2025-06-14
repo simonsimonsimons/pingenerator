@@ -40,7 +40,7 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        instances: [{ prompt: `Eine ästhetische Pinterest-Grafik für einen Blogartikel zum Thema "${prompt}". Heller Hintergrund, moderne Pastellfarben, hochwertig, fotorealistisch.` }],
+        instances: [{ prompt: `Ein ansprechendes Pinterest-Thumbnail für einen Blogartikel. Das Bild soll prominent den Text "${prompt}" enthalten. Moderner, ästhetischer Stil mit sanften Pastellfarben.` }],
         parameters: { sampleCount: 1 }
       })
     });
