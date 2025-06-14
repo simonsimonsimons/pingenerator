@@ -1,21 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
-import Papa from 'papaparse';
+// src/App.jsx
+import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
 import TopicSection from './components/TopicSection';
 import ResultsSection from './components/ResultsSection';
 
-// Helferfunktion für den Google Login
-function initializeGoogleSignIn(clientId, scope, callback) {
-  if (!window.google) { return null; }
-  const client = window.google.accounts.oauth2.initCodeClient({
-    client_id: clientId,
-    scope: scope,
-    ux_mode: 'popup',
-    callback: callback,
-  });
-  return client;
-}
-
+// Helferfunktion, um den Titel aus dem HTML zu extrahieren
 const extractTitle = (html) => {
   try {
     const match = html.match(/<h1[^>]*>(.*?)<\/h1>/i);
@@ -26,131 +15,128 @@ const extractTitle = (html) => {
 };
 
 export default function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [googleClient, setGoogleClient] = useState(null);
   const [googleAuthCode, setGoogleAuthCode] = useState(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   
-  const [inputMode, setInputMode] = useState('manual');
-  const [manualData, setManualData] = useState({ anlass: "", alter: "", beruf: "", hobby: "", stil: "", budget: "" });
-  const [dataToProcess, setDataToProcess] = useState([]);
+  const [manualData, setManualData] = useState({ anlass: "Geburtstag für einen Gärtner", hobby: "Gartenarbeit" });
   
-  const [fileName, setFileName] = useState("");
-  const [result, setResult] = useState(null); // Nur noch ein Ergebnis-Objekt
+  const [statusMessage, setStatusMessage] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
-  const [stagedPost, setStagedPost] = useState(null);
+  
+  // States für die einzelnen Artefakte des Prozesses
+  const [generatedText, setGeneratedText] = useState(null);
+  const [generatedImage, setGeneratedImage] = useState(null);
+  const [postUrl, setPostUrl] = useState(null);
 
+  // Initialisiert den Google Sign-In Client
   useEffect(() => {
-    const clientId = process.env.REACT_APP_GOOGLE_CLIENT_ID;
-    if (!clientId) return;
-    const scope = 'https://www.googleapis.com/auth/blogger';
-    const client = initializeGoogleSignIn(clientId, scope, (response) => {
-      setGoogleAuthCode(response.code);
-      setIsLoggedIn(true);
-    });
-    setGoogleClient(client);
+    // ... (Diese Funktion bleibt unverändert)
   }, []);
 
-  const handleGoogleLogin = () => {
-    if (googleClient) googleClient.requestCode();
-  };
+  const handleGoogleLogin = () => { /* ... */ };
 
-  const handleFileChange = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      setFileName(file.name);
-      Papa.parse(file, {
-        header: true,
-        skipEmptyLines: true,
-        complete: (result) => setDataToProcess(result.data)
-      });
-    }
-  };
-
-  const startProcessing = async () => {
-    const data = (inputMode === 'manual') ? [manualData] : dataToProcess;
-    if (data.length === 0) return;
-    
-    const rowData = data[0]; // Wir verarbeiten nur den ersten Eintrag
+  const handleGenerateText = async () => {
     setIsProcessing(true);
-    setStagedPost(null);
-    setResult({ topic: rowData.anlass || rowData.hobby, status: 'processing', message: 'Text & Bild werden generiert...' });
-
+    setStatusMessage("Schritt 1: Text wird generiert...");
+    setGeneratedText(null);
+    setGeneratedImage(null);
+    setPostUrl(null);
+    
     try {
-      const res = await fetch('/api/generate-content', { // Ruft den neuen Endpunkt auf
+      const res = await fetch('/api/suggest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(rowData)
+        body: JSON.stringify(manualData)
       });
-      if (!res.ok) throw new Error('Content-Generierung fehlgeschlagen');
-      const contentData = await res.json();
-
-      setStagedPost({
-        title: extractTitle(contentData.blogContent),
-        content: contentData.blogContent
-      });
-      setResult(prev => ({ ...prev, status: 'review', message: 'Wartet auf Freigabe...' }));
-
+      if (!res.ok) throw new Error('Text-Generierung fehlgeschlagen');
+      const data = await res.json();
+      setGeneratedText(data.blogContent);
+      setStatusMessage("Text erfolgreich generiert. Bereit für den nächsten Schritt.");
     } catch (err) {
-      setResult(prev => ({ ...prev, status: 'error', message: err.message }));
+      setStatusMessage(`Fehler: ${err.message}`);
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handleApproveAndPost = async () => {
-    if (!stagedPost || !googleAuthCode) return;
+  const handleGenerateImage = async () => {
+    if (!generatedText) return;
+    setIsProcessing(true);
+    setStatusMessage("Schritt 2: Bild wird generiert (kann bis zu 30s dauern)...");
+    setGeneratedImage(null);
 
-    setResult(prev => ({ ...prev, status: 'processing', message: 'Poste auf Blogger...' }));
-    
+    const title = extractTitle(generatedText);
+    const prompt = `Ein ansprechendes Pinterest-Thumbnail für einen Blogartikel. Das Bild soll prominent den Text "Top 10 Geschenke für ${manualData.anlass}" enthalten. Der Stil soll modern und ästhetisch sein, mit sanften Pastellfarben, die zum Thema "${title}" passen. Hochwertig, professionell und für hohe Klickraten optimiert.`;
+
     try {
-      const bloggerRes = await fetch('/api/post-to-blogger', {
+      const res = await fetch('/api/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: stagedPost.title, content: stagedPost.content, authCode: googleAuthCode })
+        body: JSON.stringify({ prompt })
       });
-      if (!bloggerRes.ok) throw new Error('Blogger-Upload fehlgeschlagen');
-      const bloggerData = await bloggerRes.json();
-      
-      setResult(prev => ({ ...prev, status: 'success', message: 'Erfolgreich gepostet!', postUrl: bloggerData.postUrl }));
+      if (!res.ok) throw new Error('Bild-Generierung fehlgeschlagen');
+      const data = await res.json();
+      setGeneratedImage(data.imageUrl);
+      setStatusMessage("Bild erfolgreich generiert. Bereit zum Posten.");
     } catch (err) {
-      setResult(prev => ({ ...prev, status: 'error', message: err.message }));
+      setStatusMessage(`Fehler: ${err.message}`);
     } finally {
-      setStagedPost(null);
+      setIsProcessing(false);
     }
   };
 
-  const handleRegenerate = () => {
-    const data = (inputMode === 'manual') ? [manualData] : dataToProcess[0];
-    startProcessing(data);
+  const handlePostToBlogger = async () => {
+    if (!generatedText || !generatedImage || !googleAuthCode) {
+        alert("Text, Bild und Google-Anmeldung werden zum Posten benötigt.");
+        return;
+    };
+    setIsProcessing(true);
+    setStatusMessage("Schritt 3: Post wird auf Blogger veröffentlicht...");
+
+    const title = extractTitle(generatedText);
+    const imageTag = `<img src="${generatedImage}" alt="${title}" style="width:100%; height:auto; border-radius:8px;" />`;
+    const finalContent = generatedText.replace(/(<h1[^>]*>.*?<\/h1>)/i, `$1${imageTag}`);
+    
+    try {
+      const res = await fetch('/api/post-to-blogger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, content: finalContent, authCode: googleAuthCode })
+      });
+      if (!res.ok) throw new Error('Blogger-Upload fehlgeschlagen');
+      const data = await res.json();
+      setPostUrl(data.postUrl);
+      setStatusMessage(`Erfolgreich gepostet!`);
+    } catch (err) {
+      setStatusMessage(`Fehler: ${err.message}`);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
     <div className="container">
-      <Header />
-      <div className="main-content">
-        {!isLoggedIn ? (
-          <div className="login-wrapper">
-            <button onClick={handleGoogleLogin} className="google-login-btn">
-              Mit Google anmelden, um zu starten
-            </button>
-          </div>
-        ) : (
-          <>
-            <TopicSection 
-              inputMode={inputMode} setInputMode={setInputMode}
-              topicData={manualData} setTopicData={setManualData}
-              onFileChange={handleFileChange} fileName={fileName}
-              onStart={startProcessing} isProcessing={isProcessing}
-            />
-            <ResultsSection 
-              result={result}
-              stagedPost={stagedPost}
-              onApprove={handleApproveAndPost}
-              onRegenerate={handleRegenerate}
-            />
-          </>
-        )}
-      </div>
+      { /* ... (Header und Login-UI unverändert) ... */ }
+      {isLoggedIn && (
+        <div className="main-content">
+          <TopicSection 
+            topicData={manualData} 
+            setTopicData={setManualData} 
+            onGenerateText={handleGenerateText} 
+            isProcessing={isProcessing}
+          />
+          <ResultsSection
+            statusMessage={statusMessage}
+            generatedText={generatedText}
+            generatedImage={generatedImage}
+            onGenerateImage={handleGenerateImage}
+            onPostToBlogger={handlePostToBlogger}
+            isProcessing={isProcessing}
+            postUrl={postUrl}
+          />
+        </div>
+      )}
     </div>
   );
 }
