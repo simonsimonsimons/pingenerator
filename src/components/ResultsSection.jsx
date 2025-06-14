@@ -38,12 +38,12 @@ export default function ResultsSection({
           </div>
           <div className="review-actions">
             {showGenerateImageButton && (
-              <button onClick={onGenerateImage} className="image-gen-btn">
+              <button onClick={onGenerateImage} disabled={isProcessing} className="image-gen-btn">
                 Schritt 2: Passendes Bild generieren
               </button>
             )}
             {showPostToBloggerButton && (
-              <button onClick={onPostToBlogger} className="approve-btn">
+              <button onClick={onPostToBlogger} disabled={isProcessing} className="approve-btn">
                 Schritt 3: Auf Blogger posten
               </button>
             )}
