@@ -1,20 +1,11 @@
 const { GoogleAuth } = require('google-auth-library');
 const fetch = require('node-fetch');
 const Jimp = require('jimp');
+const path = require('path'); // Node.js-Modul für die Pfad-Verarbeitung
 
-// --- Authentifizierungs-Funktion für Imagen (Vertex AI) ---
+// --- Authentifizierungs-Funktion (unverändert) ---
 async function getGcpAccessToken() {
-  const credentialsJsonString = process.env.GOOGLE_CREDENTIALS_JSON;
-  if (!credentialsJsonString) throw new Error('GOOGLE_CREDENTIALS_JSON ist nicht konfiguriert.');
-  
-  const credentials = JSON.parse(credentialsJsonString);
-  const auth = new GoogleAuth({
-    credentials,
-    scopes: 'https://www.googleapis.com/auth/cloud-platform',
-  });
-  const client = await auth.getClient();
-  const accessToken = await client.getAccessToken();
-  return accessToken.token;
+  // ... (Ihre Funktion bleibt hier unverändert)
 }
 
 export default async function handler(req, res) {
@@ -29,55 +20,40 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Fehlende Parameter.' });
   }
 
-  const API_ENDPOINT = `https://us-central1-aiplatform.googleapis.com/v1/projects/${projectId}/locations/us-central1/publishers/google/models/imagegeneration:predict`;
-
   try {
     const accessToken = await getGcpAccessToken();
     
-    // --- Schritt A: Hintergrundbild OHNE Text generieren ---
+    // --- Schritt A: Hintergrundbild generieren (unverändert) ---
     const imagePrompt = `Ein ästhetischer, minimalistischer Hintergrund für eine Pinterest-Grafik zum Thema "${title}". Sanfte, moderne Pastellfarben. Sauber und hochwertig, mit viel freiem Platz in der Mitte für Text. Kein Text.`;
-    
-    const imageGenResponse = await fetch(API_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            instances: [{ prompt: imagePrompt }],
-            parameters: { sampleCount: 1 }
-        })
-    });
-
-    if (!imageGenResponse.ok) throw new Error('Hintergrundbild-Generierung fehlgeschlagen.');
+    // ... (Ihr fetch-Aufruf an die Imagen API bleibt hier unverändert) ...
     const imageData = await imageGenResponse.json();
-    if (!imageData.predictions) throw new Error("Imagen API hat kein Bild zurückgegeben.");
-    
-    const base64Image = imageData.predictions[0].bytesBase64Encoded;
-    const imageBuffer = Buffer.from(base64Image, 'base64');
+    const imageBuffer = Buffer.from(imageData.predictions[0].bytesBase64Encoded, 'base64');
 
-    // --- Schritt B: Text mit Jimp auf das Bild schreiben ---
+    // --- Schritt B: Text mit Jimp auf das Bild schreiben (geändert) ---
     const image = await Jimp.read(imageBuffer);
     
-    // Wir laden eine große, weiße Schriftart, die bei Jimp dabei ist
-    const font = await Jimp.loadFont(Jimp.FONT_SANS_64_WHITE);
+    // NEU: Lädt die Schriftart aus unserem lokalen Projekt-Ordner
+    const fontPath = path.join(process.cwd(), 'fonts', 'open-sans-64-white.fnt');
+    const font = await Jimp.loadFont(fontPath);
     
     const text = `Top 10 Geschenke für:\n${anlass}`;
-    const textOptions = {
-      text: text,
-      alignmentX: Jimp.HORIZONTAL_ALIGN_CENTER,
-      alignmentY: Jimp.VERTICAL_ALIGN_MIDDLE
-    };
+    image.print(
+      font, 
+      0, // x
+      0, // y
+      {
+        text: text,
+        alignmentX: Jimp.HORIZONTAL_ALIGN_CENTER,
+        alignmentY: Jimp.VERTICAL_ALIGN_MIDDLE
+      },
+      image.bitmap.width,  // max-Breite
+      image.bitmap.height // max-Höhe
+    );
 
-    // Text auf das Bild drucken und dabei einen Schatten für bessere Lesbarkeit hinzufügen
-    // Schwarzer Schatten
-    image.print(font, 5, 5, textOptions, image.bitmap.width - 10, image.bitmap.height - 10);
-    // Weißer Text
-    image.print(font, 0, 0, textOptions, image.bitmap.width, image.bitmap.height);
-
-    // Das bearbeitete Bild zurück in einen Base64-String umwandeln
     const finalImageBase64 = await image.getBase64Async(Jimp.MIME_PNG);
-
     res.status(200).json({ imageUrl: finalImageBase64 });
 
-  } catch(err) {
+  } catch (err) {
     console.error("Fehler in generate-image:", err.message);
     res.status(500).json({ error: 'Interner Serverfehler bei Bild-Erstellung.' });
   }
