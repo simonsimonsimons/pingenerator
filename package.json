@@ -2,18 +2,15 @@
   "name": "blogmaster-vercel",
   "version": "0.1.0",
   "private": true,
-// package.json
-"dependencies": {
-  "react": "^18.2.0",
-  "react-dom": "^18.2.0",
-  "react-scripts": "5.0.1",
-  "node-fetch": "^2.7.0",
-  "google-auth-library": "^9.0.0",
-  "papaparse": "^5.4.1",
-  "@sparticuz/chromium-min": "^123.0.1",
-  "puppeteer-core": "^22.10.0"
-},
-},
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-scripts": "5.0.1",
+    "node-fetch": "^2.7.0",
+    "google-auth-library": "^9.0.0",
+    "papaparse": "^5.4.1",
+    "@sparticuz/chromium-min": "^123.0.1",
+    "puppeteer-core": "^22.10.0"
   },
   "scripts": {
     "start": "react-scripts start",
