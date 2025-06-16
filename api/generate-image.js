@@ -1,101 +1,83 @@
-import chromium from '@sparticuz/chromium-min';
-import puppeteer from 'puppeteer-core';
-import fetch from 'node-fetch';
-import { GoogleAuth } from 'google-auth-library';
+const puppeteer = require('puppeteer');
+const path = require('path');
+const fs = require('fs');
 
-// ... (getGcpAccessToken Funktion bleibt unverändert)
+const handler = async (req, res) => {
+  const { query } = req;
+  const { text, color, bgColor, fontSize, width, height } = query;
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
-  }
-
-  const { title, anlass } = req.body;
-  const projectId = process.env.GCP_PROJECT_ID;
-  if (!title || !anlass || !projectId) {
-    return res.status(400).json({ error: 'Fehlende Parameter.' });
-  }
-
-  let browser = null;
   try {
-    const accessToken = await getGcpAccessToken();
-    const API_ENDPOINT = `https://us-central1-aiplatform.googleapis.com/v1/projects/${projectId}/locations/us-central1/publishers/google/models/imagegeneration:predict`;
-    const imagePrompt = `Ein ästhetischer, minimalistischer Hintergrund für eine Pinterest-Grafik zum Thema "${title}". Sanfte, helle Pastellfarben. Sauber, hochwertig, mit viel freiem Platz in der Mitte für Text. Kein Text.`;
-    
-    // --- Schritt A: Hintergrundbild von Imagen holen ---
-    const imageGenResponse = await fetch(API_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-          instances: [{ prompt: imagePrompt }],
-          parameters: { sampleCount: 1 }
-      })
+    // 1. Lade die lokale Schriftart-Datei
+    // process.cwd() ist das Stammverzeichnis deines Projekts auf Vercel
+    const fontPath = path.join(process.cwd(), 'public', 'fonts', 'Roboto-Bold.ttf');
+    const fontData = fs.readFileSync(fontPath);
+    // Konvertiere die Schriftart in Base64, um sie direkt ins CSS einzubetten
+    const base64Font = fontData.toString('base64');
+
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
     });
-    if (!imageGenResponse.ok) throw new Error('Hintergrundbild-Generierung fehlgeschlagen.');
-    const imageData = await imageGenResponse.json();
-    if (!imageData.predictions) throw new Error("Imagen API hat kein Bild zurückgegeben.");
-    const base64Image = imageData.predictions[0].bytesBase64Encoded;
-    const backgroundImageUri = `data:image/png;base64,${base64Image}`;
+    const page = await browser.newPage();
+    await page.setViewport({ width: parseInt(width) || 1200, height: parseInt(height) || 630 });
 
-    // --- Schritt B: Text mit Puppeteer auf das Bild rendern ---
-    const textOverlay = `Top 10 Geschenke für ${anlass}`;
-
-    // HTML-Vorlage für das Bild
-    const htmlContent = `
+    // 2. Erstelle das HTML und bette die Schriftart via @font-face direkt ein
+    const html = `
       <html>
         <head>
-          <link rel="preconnect" href="https://fonts.googleapis.com">
-          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-          <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700&display=swap" rel="stylesheet">
           <style>
-            body { margin: 0; width: 800px; height: 1200px; }
-            .container {
-              width: 100%; height: 100%;
-              display: flex; justify-content: center; align-items: center;
-              text-align: center;
-              background-image: url(${backgroundImageUri});
-              background-size: cover;
-              background-position: center;
-            }
-            h1 {
-              font-family: 'Montserrat', sans-serif;
-              font-size: 80px;
+            /* Definiere eine eigene Schriftfamilie und lade die Base64-codierte
+              Schriftart direkt. Das ist extrem schnell und zuverlässig.
+            */
+            @font-face {
+              font-family: 'Roboto Custom';
+              src: url(data:font/truetype;charset=utf-8;base64,${base64Font}) format('truetype');
               font-weight: 700;
-              color: white;
-              padding: 0 40px;
-              text-shadow: 2px 2px 8px rgba(0,0,0,0.8);
+              font-style: normal;
+            }
+            body {
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              height: 100%;
+              margin: 0;
+              background-color: #${bgColor || 'ffffff'};
+              /* Verwende die oben definierte, lokal geladene Schriftart */
+              font-family: 'Roboto Custom', sans-serif;
+            }
+            .text-container {
+              font-size: ${fontSize || '72'}px;
+              color: #${color || '000000'};
+              text-align: center;
+              padding: 20px;
+              /* Zeilenumbruch bei langen Texten hinzufügen */
+              word-wrap: break-word;
+              max-width: 90%;
             }
           </style>
         </head>
         <body>
-          <div class="container">
-            <h1>${textOverlay}</h1>
-          </div>
+          <div class="text-container">${text || 'Hello World'}</div>
         </body>
       </html>
     `;
 
-    // Puppeteer konfigurieren und starten
-    browser = await puppeteer.launch({
-      args: chromium.args,
-      defaultViewport: { width: 800, height: 1200 },
-      executablePath: await chromium.executablePath(),
-      headless: chromium.headless,
-    });
+    await page.setContent(html, { waitUntil: 'domcontentloaded' });
 
-    const page = await browser.newPage();
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-    const screenshotBuffer = await page.screenshot({ type: 'png', encoding: 'base64' });
-    const finalImageUrl = `data:image/png;base64,${screenshotBuffer}`;
+    const imageBuffer = await page.screenshot({ type: 'png' });
 
-    res.status(200).json({ imageUrl: finalImageUrl });
+    await browser.close();
+
+    // 3. Sende das generierte Bild als Antwort
+    res.setHeader('Content-Type', 'image/png');
+    // Setze einen starken Caching-Header, damit das Bild bei gleichen Parametern nicht neu generiert werden muss
+    res.setHeader('Cache-Control', 's-maxage=31536000, stale-while-revalidate');
+    res.status(200).send(imageBuffer);
 
   } catch (error) {
-    console.error("Fehler in generate-image (Puppeteer):", error);
-    return res.status(500).json({ error: 'Interner Fehler bei der Bild-Erstellung.' });
-  } finally {
-    if (browser !== null) {
-      await browser.close();
-    }
+    console.error('Fehler in generate-image:', error);
+    res.status(500).json({ error: 'Fehler beim Generieren des Bildes.', details: error.message });
   }
-}
+};
+
+module.exports = handler;
