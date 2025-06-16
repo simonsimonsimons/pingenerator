@@ -9,7 +9,10 @@
   "react-scripts": "5.0.1",
   "node-fetch": "^2.7.0",
   "google-auth-library": "^9.0.0",
-  "jimp": "^0.22.10"
+  "papaparse": "^5.4.1",
+  "@sparticuz/chromium-min": "^123.0.1",
+  "puppeteer-core": "^22.10.0"
+},
 },
   },
   "scripts": {
