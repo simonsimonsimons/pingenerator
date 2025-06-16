@@ -2,15 +2,14 @@
   "name": "blogmaster-vercel",
   "version": "0.1.0",
   "private": true,
-// package.json
-"dependencies": {
-  "react": "^18.2.0",
-  "react-dom": "^18.2.0",
-  "react-scripts": "5.0.1",
-  "node-fetch": "^2.7.0",
-  "google-auth-library": "^9.0.0",
-  "jimp": "^0.22.10"
-},
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-scripts": "5.0.1",
+    "node-fetch": "^2.7.0",
+    "papaparse": "^5.4.1",
+    "google-auth-library": "^9.0.0",
+    "jimp": "^0.22.10"
   },
   "scripts": {
     "start": "react-scripts start",
@@ -35,8 +34,5 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
-  },
-  "engines": {
-    "node": "18.x"
   }
 }
