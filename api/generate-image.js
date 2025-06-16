@@ -3,6 +3,7 @@ const fetch = require('node-fetch');
 const Jimp = require('jimp');
 const path = require('path');
 
+// Diese Funktion authentifiziert sich mit dem Service Account
 async function getGcpAccessToken() {
   const credentialsJsonString = process.env.GOOGLE_CREDENTIALS_JSON;
   if (!credentialsJsonString) throw new Error('GOOGLE_CREDENTIALS_JSON ist nicht konfiguriert.');
@@ -34,7 +35,8 @@ export default async function handler(req, res) {
   try {
     const accessToken = await getGcpAccessToken();
     
-    const imagePrompt = `Ein ästhetischer, minimalistischer Hintergrund für eine Pinterest-Grafik zum Thema "${title}". Sanfte, helle Pastellfarben. Sauber und hochwertig, mit viel freiem Platz in der Mitte für Text. Kein Text.`;
+    // Schritt A: Hintergrundbild OHNE Text generieren
+    const imagePrompt = `Ein ästhetischer, minimalistischer Hintergrund für eine Pinterest-Grafik zum Thema "${title}". Sanfte, moderne Pastellfarben. Sauber und hochwertig, mit viel freiem Platz in der Mitte für Text. Kein Text.`;
     
     const imageGenResponse = await fetch(API_ENDPOINT, {
         method: 'POST',
@@ -52,30 +54,23 @@ export default async function handler(req, res) {
     const base64Image = imageData.predictions[0].bytesBase64Encoded;
     const imageBuffer = Buffer.from(base64Image, 'base64');
 
+    // Schritt B: Text mit Jimp auf das Bild schreiben
     const image = await Jimp.read(imageBuffer);
     
-    // Dieser Pfad ist jetzt dank vercel.json auf dem Server verfügbar
-    const fontPath = path.join(process.cwd(), 'fonts', 'open-sans-64-black.fnt');
+    const fontPath = path.join(process.cwd(), 'fonts', 'open-sans-64-white.fnt');
     const font = await Jimp.loadFont(fontPath);
     
     const text = `Top 10 Geschenke für:\n${anlass}`;
     
-    image.print(
-      font, 
-      0, 0,
-      {
-        text: text,
-        alignmentX: Jimp.HORIZONTAL_ALIGN_CENTER,
-        alignmentY: Jimp.VERTICAL_ALIGN_MIDDLE
-      },
-      image.bitmap.width,
-      image.bitmap.height
-    );
+    // Text mit schwarzem Schatten für bessere Lesbarkeit
+    image.print(font, 2, 2, { text, alignmentX: Jimp.HORIZONTAL_ALIGN_CENTER, alignmentY: Jimp.VERTICAL_ALIGN_MIDDLE }, image.bitmap.width, image.bitmap.height);
+    // Weißer Text
+    image.print(font, 0, 0, { text, alignmentX: Jimp.HORIZONTAL_ALIGN_CENTER, alignmentY: Jimp.VERTICAL_ALIGN_MIDDLE }, image.bitmap.width, image.bitmap.height);
 
     const finalImageBase64 = await image.getBase64Async(Jimp.MIME_PNG);
     res.status(200).json({ imageUrl: finalImageBase64 });
 
-  } catch (err) {
+  } catch(err) {
     console.error("Fehler in generate-image:", err.message);
     res.status(500).json({ error: 'Interner Serverfehler bei Bild-Erstellung.' });
   }
