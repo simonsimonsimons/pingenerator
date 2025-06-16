@@ -1,4 +1,5 @@
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer-core');
+const chromium = require('@sparticuz/chromium');
 const path = require('path');
 const fs = require('fs');
 
@@ -7,28 +8,27 @@ const handler = async (req, res) => {
   const { text, color, bgColor, fontSize, width, height } = query;
 
   try {
-    // 1. Lade die lokale Schriftart-Datei
-    // process.cwd() ist das Stammverzeichnis deines Projekts auf Vercel
+    // Lade die lokale Schriftart-Datei
     const fontPath = path.join(process.cwd(), 'public', 'fonts', 'Roboto-Bold.ttf');
     const fontData = fs.readFileSync(fontPath);
-    // Konvertiere die Schriftart in Base64, um sie direkt ins CSS einzubetten
     const base64Font = fontData.toString('base64');
 
+    // Starte den Browser mit den für Vercel optimierten Einstellungen
     const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless,
+      ignoreHTTPSErrors: true,
     });
+
     const page = await browser.newPage();
     await page.setViewport({ width: parseInt(width) || 1200, height: parseInt(height) || 630 });
 
-    // 2. Erstelle das HTML und bette die Schriftart via @font-face direkt ein
     const html = `
       <html>
         <head>
           <style>
-            /* Definiere eine eigene Schriftfamilie und lade die Base64-codierte
-              Schriftart direkt. Das ist extrem schnell und zuverlässig.
-            */
             @font-face {
               font-family: 'Roboto Custom';
               src: url(data:font/truetype;charset=utf-8;base64,${base64Font}) format('truetype');
@@ -42,7 +42,6 @@ const handler = async (req, res) => {
               height: 100%;
               margin: 0;
               background-color: #${bgColor || 'ffffff'};
-              /* Verwende die oben definierte, lokal geladene Schriftart */
               font-family: 'Roboto Custom', sans-serif;
             }
             .text-container {
@@ -50,7 +49,6 @@ const handler = async (req, res) => {
               color: #${color || '000000'};
               text-align: center;
               padding: 20px;
-              /* Zeilenumbruch bei langen Texten hinzufügen */
               word-wrap: break-word;
               max-width: 90%;
             }
@@ -68,9 +66,7 @@ const handler = async (req, res) => {
 
     await browser.close();
 
-    // 3. Sende das generierte Bild als Antwort
     res.setHeader('Content-Type', 'image/png');
-    // Setze einen starken Caching-Header, damit das Bild bei gleichen Parametern nicht neu generiert werden muss
     res.setHeader('Cache-Control', 's-maxage=31536000, stale-while-revalidate');
     res.status(200).send(imageBuffer);
 
