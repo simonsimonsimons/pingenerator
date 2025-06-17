@@ -2,29 +2,20 @@ import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
 import TopicSection from './components/TopicSection';
 import ResultsSection from './components/ResultsSection';
-import Papa from 'papaparse'; // Behalten wir für eine spätere mögliche CSV-Implementierung
+// PapaParse wird hier nicht mehr benötigt, da wir den CSV-Flow entfernt haben
+// import Papa from 'papaparse'; 
 
-// Helferfunktion, um den Titel aus dem HTML zu extrahieren
 const extractTitle = (html) => {
   try {
     const match = html.match(/<h1[^>]*>(.*?)<\/h1>/i);
     return match ? match[1].trim() : 'Beitrag ohne Titel';
-  } catch (e) {
-    return 'Beitrag ohne Titel';
-  }
+  } catch (e) { return 'Beitrag ohne Titel'; }
 };
 
-// Helferfunktion für den Google Login
 function initializeGoogleSignIn(clientId, scope, callback) {
-  if (!window.google) {
-    console.error("Google-Skript ist nicht bereit.");
-    return null;
-  }
+  if (!window.google) return null;
   return window.google.accounts.oauth2.initCodeClient({
-    client_id: clientId,
-    scope: scope,
-    ux_mode: 'popup',
-    callback: callback,
+    client_id: clientId, scope: scope, ux_mode: 'popup', callback: callback,
   });
 }
 
@@ -33,12 +24,7 @@ export default function App() {
   const [googleClient, setGoogleClient] = useState(null);
   
   const [manualData, setManualData] = useState({
-    anlass: "Vatertag",
-    alter: "45",
-    beruf: "Papa, der alles hat",
-    hobby: "Grillen & Entspannen",
-    stil: "lustig und praktisch",
-    budget: "bis 100 Euro"
+    anlass: "Vatertag", alter: "45", beruf: "Papa, der alles hat", hobby: "Grillen & Entspannen", stil: "lustig und praktisch", budget: "bis 100 Euro"
   });
   
   const [status, setStatus] = useState({ message: "Bereit.", type: "idle" });
@@ -48,7 +34,6 @@ export default function App() {
   const [generatedImage, setGeneratedImage] = useState(null);
   const [postUrl, setPostUrl] = useState(null);
 
-  // Lädt das Google-Skript sicher
   useEffect(() => {
     const script = document.createElement('script');
     script.src = 'https://accounts.google.com/gsi/client';
@@ -56,10 +41,7 @@ export default function App() {
     script.defer = true;
     script.onload = () => {
       const clientId = process.env.REACT_APP_GOOGLE_CLIENT_ID;
-      if (!clientId) {
-        console.error("Google Client ID für Frontend nicht gefunden.");
-        return;
-      }
+      if (!clientId) return;
       const client = initializeGoogleSignIn(clientId, 'https://www.googleapis.com/auth/blogger', () => {});
       setGoogleClient(client);
     };
@@ -85,12 +67,11 @@ export default function App() {
   const handleGenerateText = async () => {
     resetState();
     setIsProcessing(true);
-    setStatus({ message: "Schritt 1/3: SEO-Text wird generiert...", type: 'processing' });
+    setStatus({ message: "Schritt 1/3: Text wird generiert...", type: 'processing' });
     
     try {
       const res = await fetch('/api/suggest', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(manualData)
       });
       if (!res.ok) throw new Error('Text-Generierung fehlgeschlagen');
@@ -112,8 +93,7 @@ export default function App() {
     try {
       const title = extractTitle(generatedText);
       const res = await fetch('/api/generate-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, anlass: manualData.anlass })
       });
       if (!res.ok) throw new Error('Bild-Generierung fehlgeschlagen');
@@ -128,31 +108,23 @@ export default function App() {
   };
 
   const handlePostToBlogger = () => {
-    if (!generatedText || !generatedImage || !googleClient) {
-        alert("Text, Bild und Google-Anmeldung werden benötigt.");
-        return;
-    };
+    if (!generatedText || !generatedImage || !googleClient) return;
     
     setStatus({ message: "Warte auf Google-Autorisierung...", type: 'processing' });
-
     googleClient.callback = async (response) => {
       const authCode = response.code;
       if (!authCode) {
         setStatus({ message: "Google-Authentifizierung abgebrochen.", type: 'error' });
         return;
       }
-      
       setIsProcessing(true);
       setStatus({ message: "Schritt 3/3: Post wird veröffentlicht...", type: 'processing' });
-
       const title = extractTitle(generatedText);
-      const imageTag = `<img src="<span class="math-inline">\{generatedImage\}" alt\="</span>{title}" style="width:100%; height:auto; border-radius:8px; margin: 1em 0;" />`;
-      const finalContent = generatedText.replace(/(<h1[^>]*>.*?<\/h1>)/i, `<span class="math-inline">1</span>{imageTag}`);
-      
+      const imageTag = `<img src="${generatedImage}" alt="${title}" style="width:100%; height:auto; border-radius:8px; margin: 1em 0;" />`;
+      const finalContent = generatedText.replace(/(<h1[^>]*>.*?<\/h1>)/i, `$1${imageTag}`);
       try {
         const res = await fetch('/api/post-to-blogger', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ title, content: finalContent, authCode })
         });
         if (!res.ok) throw new Error('Blogger-Upload fehlgeschlagen');
@@ -181,15 +153,17 @@ export default function App() {
         ) : (
           <>
             <TopicSection 
-              topicData={manualData} 
-              setTopicData={setManualData} 
-              onGenerateText={handleGenerateText} 
-              isProcessing={isProcessing}
+              topicData={manualData} setTopicData={setManualData} onGenerateText={handleGenerateText} isProcessing={isProcessing}
             />
             <ResultsSection
-              statusMessage={status.message}
-              statusType={status.type}
-              generatedText={generatedText}
-              generatedImage={generatedImage}
-              onGenerateImage={handleGenerateImage}
-              onPostToBlogger={handle
+              statusMessage={status.message} statusType={status.type}
+              generatedText={generatedText} generatedImage={generatedImage}
+              onGenerateImage={handleGenerateImage} onPostToBlogger={handlePostToBlogger}
+              isProcessing={isProcessing} postUrl={postUrl}
+            />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
