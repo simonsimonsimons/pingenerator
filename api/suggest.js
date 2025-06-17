@@ -1,5 +1,7 @@
+// /api/suggest.js
 import fetch from 'node-fetch';
 
+// Erzeugt einen Amazon-Suchlink mit Affiliate-Tag
 function generateAmazonAffiliateLink(produktName) {
   const amazonTag = process.env.AFFILIATE_ID_AMAZON || "";
   if (!produktName || produktName.trim() === "") return "#";
@@ -9,6 +11,7 @@ function generateAmazonAffiliateLink(produktName) {
     : `https://www.amazon.de/s?k=${encodedQuery}`;
 }
 
+// API-Handler
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
@@ -19,8 +22,14 @@ export default async function handler(req, res) {
 
     if (!geminiKey) return res.status(500).json({ error: "Missing Gemini API Key" });
 
-    const prompt = `Du bist ein SEO- und Conversion-optimierter Blog-Autor...`; // Dein Prompt
+    // Prompt mit deinen Parametern
+    const prompt = `
+Du bist ein SEO- und Conversion-optimierter Blog-Autor.
+SCHRITT 1: Erstelle eine Liste von genau 10 einzigartigen, gängigen und auf Amazon auffindbaren Geschenkideen...
+// ...Rest deines Prompts, inklusive der Variablen (anlass, hobby etc.)
+`;
 
+    // Request an Gemini
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiKey}`,
       {
@@ -38,8 +47,8 @@ export default async function handler(req, res) {
     const data = await response.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
-    // Setze deine Affiliate-Links hier ein (als Beispiel für <li> ... </li>)
-    let html = text.replace(/<li>(.*?)<\/li>/g, (match, p1) => {
+    // Affiliate-Links in <li>-Elemente einbauen
+    const html = text.replace(/<li>(.*?)<\/li>/g, (match, p1) => {
       const url = generateAmazonAffiliateLink(p1);
       return `<li><a href="${url}" target="_blank" rel="noopener">${p1}</a></li>`;
     });
