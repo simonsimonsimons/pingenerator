@@ -13,10 +13,10 @@
     "react-dom": "^18.2.0",
     "react-scripts": "^0.0.0"
   },
-// KORREKTE VERSION FÜR NEXT.JS
+
 "scripts": {
   "dev": "next dev",
-  "build": "next build", // <-- DAS IST DIE KORREKTUR
+  "build": "next build",
   "start": "next start",
   "lint": "next lint"
   },
