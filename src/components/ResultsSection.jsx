@@ -13,6 +13,7 @@ export default function ResultsSection({
   const showSection = generatedText || isProcessing || postUrl;
   if (!showSection) return null;
 
+  // Definiert, welche Buttons angezeigt werden sollen
   const showGenerateImageButton = generatedText && !generatedImage && !isProcessing;
   const showPostToBloggerButton = generatedText && generatedImage && !postUrl && !isProcessing;
 
