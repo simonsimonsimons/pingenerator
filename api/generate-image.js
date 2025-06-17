@@ -1,79 +1,65 @@
-const puppeteer = require('puppeteer-core');
-const chromium = require('@sparticuz/chromium');
+const { GoogleAuth } = require('google-auth-library');
+const fetch = require('node-fetch');
+const Jimp = require('jimp');
 const path = require('path');
-const fs = require('fs');
 
-const handler = async (req, res) => {
-  const { query } = req;
-  const { text, color, bgColor, fontSize, width, height } = query;
+async function getGcpAccessToken() {
+  const credentialsJsonString = process.env.GOOGLE_CREDENTIALS_JSON;
+  if (!credentialsJsonString) throw new Error('GOOGLE_CREDENTIALS_JSON ist nicht konfiguriert.');
+  const credentials = JSON.parse(credentialsJsonString);
+  const auth = new GoogleAuth({ credentials, scopes: 'https://www.googleapis.com/auth/cloud-platform' });
+  const client = await auth.getClient();
+  const accessToken = await client.getAccessToken();
+  return accessToken.token;
+}
+
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method Not Allowed' });
+  }
+
+  const { title, anlass } = req.body;
+  const projectId = process.env.GCP_PROJECT_ID;
+  if (!title || !anlass || !projectId) {
+    return res.status(400).json({ error: 'Fehlende Parameter.' });
+  }
+
+  const API_ENDPOINT = `https://us-central1-aiplatform.googleapis.com/v1/projects/${projectId}/locations/us-central1/publishers/google/models/imagegeneration:predict`;
 
   try {
-    // Lade die lokale Schriftart-Datei
-    const fontPath = path.join(process.cwd(), 'public', 'fonts', 'Roboto-Bold.ttf');
-    const fontData = fs.readFileSync(fontPath);
-    const base64Font = fontData.toString('base64');
-
-    // Starte den Browser mit den für Vercel optimierten Einstellungen
-    const browser = await puppeteer.launch({
-      args: chromium.args,
-      defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath(),
-      headless: chromium.headless,
-      ignoreHTTPSErrors: true,
+    const accessToken = await getGcpAccessToken();
+    
+    const imagePrompt = `Ein ästhetischer, minimalistischer Hintergrund für eine Pinterest-Grafik zum Thema "${title}". Sanfte, helle Pastellfarben. Sauber und hochwertig, mit viel freiem Platz in der Mitte für Text. Kein Text.`;
+    
+    const imageGenResponse = await fetch(API_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            instances: [{ prompt: imagePrompt }],
+            parameters: { sampleCount: 1 }
+        })
     });
 
-    const page = await browser.newPage();
-    await page.setViewport({ width: parseInt(width) || 1200, height: parseInt(height) || 630 });
+    if (!imageGenResponse.ok) throw new Error('Hintergrundbild-Generierung fehlgeschlagen.');
+    const imageData = await imageGenResponse.json();
+    if (!imageData.predictions) throw new Error("Imagen API hat kein Bild zurückgegeben.");
+    
+    const base64Image = imageData.predictions[0].bytesBase64Encoded;
+    const imageBuffer = Buffer.from(base64Image, 'base64');
 
-    const html = `
-      <html>
-        <head>
-          <style>
-            @font-face {
-              font-family: 'Roboto Custom';
-              src: url(data:font/truetype;charset=utf-8;base64,${base64Font}) format('truetype');
-              font-weight: 700;
-              font-style: normal;
-            }
-            body {
-              display: flex;
-              justify-content: center;
-              align-items: center;
-              height: 100%;
-              margin: 0;
-              background-color: #${bgColor || 'ffffff'};
-              font-family: 'Roboto Custom', sans-serif;
-            }
-            .text-container {
-              font-size: ${fontSize || '72'}px;
-              color: #${color || '000000'};
-              text-align: center;
-              padding: 20px;
-              word-wrap: break-word;
-              max-width: 90%;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="text-container">${text || 'Hello World'}</div>
-        </body>
-      </html>
-    `;
+    const image = await Jimp.read(imageBuffer);
+    const fontPath = path.join(process.cwd(), 'fonts', 'open-sans-64-black.fnt');
+    const font = await Jimp.loadFont(fontPath);
+    
+    const text = `Top 10 Geschenke für:\n${anlass}`;
+    
+    image.print(font, 0, 0, { text, alignmentX: Jimp.HORIZONTAL_ALIGN_CENTER, alignmentY: Jimp.VERTICAL_ALIGN_MIDDLE }, image.bitmap.width, image.bitmap.height);
 
-    await page.setContent(html, { waitUntil: 'domcontentloaded' });
+    const finalImageBase64 = await image.getBase64Async(Jimp.MIME_PNG);
+    res.status(200).json({ imageUrl: finalImageBase64 });
 
-    const imageBuffer = await page.screenshot({ type: 'png' });
-
-    await browser.close();
-
-    res.setHeader('Content-Type', 'image/png');
-    res.setHeader('Cache-Control', 's-maxage=31536000, stale-while-revalidate');
-    res.status(200).send(imageBuffer);
-
-  } catch (error) {
-    console.error('Fehler in generate-image:', error);
-    res.status(500).json({ error: 'Fehler beim Generieren des Bildes.', details: error.message });
+  } catch (err) {
+    console.error("Fehler in generate-image:", err.message);
+    res.status(500).json({ error: 'Interner Serverfehler bei Bild-Erstellung.' });
   }
-};
-
-module.exports = handler;
+}
