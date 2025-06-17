@@ -3,7 +3,6 @@ import Header from './components/Header';
 import TopicSection from './components/TopicSection';
 import ResultsSection from './components/ResultsSection';
 
-// Helferfunktion, um den Titel aus dem HTML zu extrahieren
 const extractTitle = (html) => {
   try {
     const match = html.match(/<h1[^>]*>(.*?)<\/h1>/i);
@@ -12,6 +11,19 @@ const extractTitle = (html) => {
     return 'Beitrag ohne Titel';
   }
 };
+
+function initializeGoogleSignIn(clientId, scope, callback) {
+  if (!window.google) {
+    console.error("Google-Skript ist nicht bereit.");
+    return null;
+  }
+  return window.google.accounts.oauth2.initCodeClient({
+    client_id: clientId,
+    scope: scope,
+    ux_mode: 'popup',
+    callback: callback,
+  });
+}
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -40,21 +52,17 @@ export default function App() {
     script.defer = true;
     script.onload = () => {
       const clientId = process.env.REACT_APP_GOOGLE_CLIENT_ID;
-      const scope = 'https://www.googleapis.com/auth/blogger';
       if (!clientId) {
         console.error("Google Client ID für Frontend nicht gefunden.");
         return;
       }
-      const client = window.google.accounts.oauth2.initCodeClient({
-        client_id: clientId,
-        scope: scope,
-        ux_mode: 'popup',
-        callback: () => {}, // Callback wird dynamisch gesetzt
-      });
+      const client = initializeGoogleSignIn(clientId, 'https://www.googleapis.com/auth/blogger', () => {});
       setGoogleClient(client);
     };
     document.body.appendChild(script);
-    return () => document.body.removeChild(script);
+    return () => {
+      document.body.removeChild(script);
+    };
   }, []);
 
   const handleInitialLogin = () => {
@@ -63,8 +71,8 @@ export default function App() {
       googleClient.requestCode();
     }
   };
-
-  const resetAll = () => {
+  
+  const resetState = () => {
     setIsProcessing(false);
     setGeneratedText(null);
     setGeneratedImage(null);
@@ -73,7 +81,7 @@ export default function App() {
   };
 
   const handleGenerateText = async () => {
-    resetAll();
+    resetState();
     setIsProcessing(true);
     setStatus({ message: "Schritt 1/3: SEO-Text wird generiert...", type: 'processing' });
     
@@ -97,10 +105,11 @@ export default function App() {
   const handleGenerateImage = async () => {
     if (!generatedText) return;
     setIsProcessing(true);
-    setStatus({ message: "Schritt 2/3: Bild wird generiert (dauert ca. 30s)...", type: 'processing' });
+    setStatus({ message: "Schritt 2/3: Bild wird generiert...", type: 'processing' });
+
+    const title = extractTitle(generatedText);
     
     try {
-      const title = extractTitle(generatedText);
       const res = await fetch('/api/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -117,9 +126,14 @@ export default function App() {
     }
   };
 
-  const handlePostToBlogger = async () => {
-    if (!generatedText || !generatedImage || !googleClient) return;
+  const handlePostToBlogger = () => {
+    if (!generatedText || !generatedImage || !googleClient) {
+        alert("Text, Bild und Google-Anmeldung werden benötigt.");
+        return;
+    };
     
+    setStatus({ message: "Warte auf Google-Autorisierung...", type: 'processing' });
+
     googleClient.callback = async (response) => {
       const authCode = response.code;
       if (!authCode) {
@@ -128,7 +142,7 @@ export default function App() {
       }
       
       setIsProcessing(true);
-      setStatus({ message: "Schritt 3/3: Post wird auf Blogger veröffentlicht...", type: 'processing' });
+      setStatus({ message: "Schritt 3/3: Post wird veröffentlicht...", type: 'processing' });
 
       const title = extractTitle(generatedText);
       const imageTag = `<img src="${generatedImage}" alt="${title}" style="width:100%; height:auto; border-radius:8px; margin: 1em 0;" />`;
