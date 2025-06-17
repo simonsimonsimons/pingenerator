@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
 import TopicSection from './components/TopicSection';
 import ResultsSection from './components/ResultsSection';
+import Papa from 'papaparse'; // Behalten wir für eine spätere mögliche CSV-Implementierung
 
+// Helferfunktion, um den Titel aus dem HTML zu extrahieren
 const extractTitle = (html) => {
   try {
     const match = html.match(/<h1[^>]*>(.*?)<\/h1>/i);
@@ -12,6 +14,7 @@ const extractTitle = (html) => {
   }
 };
 
+// Helferfunktion für den Google Login
 function initializeGoogleSignIn(clientId, scope, callback) {
   if (!window.google) {
     console.error("Google-Skript ist nicht bereit.");
@@ -45,6 +48,7 @@ export default function App() {
   const [generatedImage, setGeneratedImage] = useState(null);
   const [postUrl, setPostUrl] = useState(null);
 
+  // Lädt das Google-Skript sicher
   useEffect(() => {
     const script = document.createElement('script');
     script.src = 'https://accounts.google.com/gsi/client';
@@ -60,9 +64,7 @@ export default function App() {
       setGoogleClient(client);
     };
     document.body.appendChild(script);
-    return () => {
-      document.body.removeChild(script);
-    };
+    return () => { document.body.removeChild(script); };
   }, []);
 
   const handleInitialLogin = () => {
@@ -106,10 +108,9 @@ export default function App() {
     if (!generatedText) return;
     setIsProcessing(true);
     setStatus({ message: "Schritt 2/3: Bild wird generiert...", type: 'processing' });
-
-    const title = extractTitle(generatedText);
     
     try {
+      const title = extractTitle(generatedText);
       const res = await fetch('/api/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -145,8 +146,8 @@ export default function App() {
       setStatus({ message: "Schritt 3/3: Post wird veröffentlicht...", type: 'processing' });
 
       const title = extractTitle(generatedText);
-      const imageTag = `<img src="${generatedImage}" alt="${title}" style="width:100%; height:auto; border-radius:8px; margin: 1em 0;" />`;
-      const finalContent = generatedText.replace(/(<h1[^>]*>.*?<\/h1>)/i, `$1${imageTag}`);
+      const imageTag = `<img src="<span class="math-inline">\{generatedImage\}" alt\="</span>{title}" style="width:100%; height:auto; border-radius:8px; margin: 1em 0;" />`;
+      const finalContent = generatedText.replace(/(<h1[^>]*>.*?<\/h1>)/i, `<span class="math-inline">1</span>{imageTag}`);
       
       try {
         const res = await fetch('/api/post-to-blogger', {
@@ -191,13 +192,4 @@ export default function App() {
               generatedText={generatedText}
               generatedImage={generatedImage}
               onGenerateImage={handleGenerateImage}
-              onPostToBlogger={handlePostToBlogger}
-              isProcessing={isProcessing}
-              postUrl={postUrl}
-            />
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
+              onPostToBlogger={handle
